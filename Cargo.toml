@@ -1,12 +1,10 @@
 [package]
-name = "esprit"
-version = "0.0.5"
-authors = ["Dave Herman <dherman@mozilla.com>"]
+name = "prettier-rs"
+version = "0.0.1"
+authors = ["Venkata Ramana <idlike2dream+opensource@gmail.com>"]
 license = "MIT"
 description = "An ECMAScript parser library."
-documentation = "https://esprit.surge.sh"
-homepage = "https://esprit.surge.sh"
-repository = "https://github.com/dherman/esprit"
+repository = "https://github.com/vramana/prettier-rs"
 exclude = ["tests/esprima/**/*"]
 
 [dependencies]
@@ -17,6 +15,13 @@ unjson = { version = "0.0.5", path = "crates/unjson" }
 joker = { version = "0.0.5", path = "crates/joker" }
 easter = { version = "0.0.5", path = "crates/easter" }
 estree = { version = "0.0.5", path = "crates/estree" }
+esprit = { version = "0.0.5", path = "crates/esprit" }
+
+[[bin]]
+bench = false
+path = "src/main.rs"
+name = "prettier-rs"
+
 
 [dev-dependencies]
 rustc-test = "0.1"
