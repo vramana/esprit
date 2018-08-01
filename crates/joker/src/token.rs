@@ -1,21 +1,24 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use track::{Span, Posn, Untrack};
-use word::{Reserved, Name};
+use track::{Posn, Span, Untrack};
+use word::{Name, Reserved};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub location: Span,
-    pub newline: bool,    // was there a newline between the preceding token and this one?
-    pub value: TokenData
+    pub newline: bool, // was there a newline between the preceding token and this one?
+    pub value: TokenData,
 }
 
 impl Token {
     pub fn new(start: Posn, end: Posn, value: TokenData) -> Token {
         Token {
-            location: Span { start: start, end: end },
+            location: Span {
+                start: start,
+                end: end,
+            },
             newline: false,
-            value: value
+            value: value,
         }
     }
 }
@@ -82,14 +85,14 @@ pub enum TokenData {
 
     Identifier(Name),
 
-    EOF
+    EOF,
 }
 
 impl TokenData {
     pub fn is_string(&self) -> bool {
         match *self {
             TokenData::String(_) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -97,12 +100,14 @@ impl TokenData {
 #[derive(Clone)]
 pub struct RegExpLiteral {
     pub pattern: String,
-    pub flags: Vec<char>
+    pub flags: Vec<char>,
 }
 
 impl Untrack for RegExpLiteral {
     fn untrack(&mut self) {}
 }
+
+// TODO move to impl RegExpLiteral
 
 trait CharsEx {
     fn alphabetize(&self) -> Vec<char>;
@@ -127,15 +132,14 @@ impl Debug for RegExpLiteral {
 
 impl PartialEq for RegExpLiteral {
     fn eq(&self, other: &Self) -> bool {
-        (self.pattern == other.pattern) &&
-        (self.flags.alphabetize() == other.flags.alphabetize())
+        (self.pattern == other.pattern) && (self.flags.alphabetize() == other.flags.alphabetize())
     }
 }
 
 #[derive(Clone)]
 pub struct StringLiteral {
     pub source: Option<String>,
-    pub value: String
+    pub value: String,
 }
 
 impl Untrack for StringLiteral {
@@ -159,7 +163,7 @@ impl PartialEq for StringLiteral {
 #[derive(Clone)]
 pub struct NumberLiteral {
     pub source: Option<NumberSource>,
-    pub value: f64
+    pub value: f64,
 }
 
 impl Untrack for NumberLiteral {
@@ -184,46 +188,66 @@ impl PartialEq for NumberLiteral {
 pub enum NumberSource {
     DecimalInt(String, Option<Exp>),
     RadixInt(Radix, String),
-    Float(Option<String>, Option<String>, Option<Exp>)
+    Float(Option<String>, Option<String>, Option<Exp>),
 }
 
 fn format_sign(sign: &Option<Sign>) -> String {
     match *sign {
         Some(Sign::Minus) => "-",
-        _ => ""
+        _ => "",
     }.to_string()
 }
 
 fn format_int(src: &Option<String>) -> String {
     match *src {
-        None        => "".to_string(),
-        Some(ref s) => s.to_string()
+        None => "".to_string(),
+        Some(ref s) => s.to_string(),
     }
 }
 
 impl NumberSource {
     pub fn value(&self) -> f64 {
         match *self {
-            NumberSource::DecimalInt(ref mantissa, None) => {
-                mantissa.parse().unwrap()
-            }
-            NumberSource::DecimalInt(ref mantissa, Some(Exp { ref sign, ref value, .. })) => {
-                format!("{}e{}{}", mantissa, format_sign(sign), value).parse().unwrap()
-            }
+            NumberSource::DecimalInt(ref mantissa, None) => mantissa.parse().unwrap(),
+            NumberSource::DecimalInt(
+                ref mantissa,
+                Some(Exp {
+                    ref sign,
+                    ref value,
+                    ..
+                }),
+            ) => format!("{}e{}{}", mantissa, format_sign(sign), value)
+                .parse()
+                .unwrap(),
             NumberSource::RadixInt(ref radix, ref src) => {
                 let radix = radix.value();
                 let mult = radix as f64;
 
                 src.chars()
-                .map(|c| c.to_digit(radix).unwrap() as f64)
-                .fold(0f64, |res, digit| res.mul_add(mult, digit))
+                    .map(|c| c.to_digit(radix).unwrap() as f64)
+                    .fold(0f64, |res, digit| res.mul_add(mult, digit))
             }
             NumberSource::Float(ref ip, ref fp, None) => {
-                format!("{}.{}", format_int(ip), format_int(fp)).parse().unwrap()
+                format!("{}.{}", format_int(ip), format_int(fp))
+                    .parse()
+                    .unwrap()
             }
-            NumberSource::Float(ref ip, ref fp, Some(Exp { ref sign, ref value, .. })) => {
-                format!("{}.{}e{}{}", format_int(ip), format_int(fp), format_sign(sign), value).parse().unwrap()
-            }
+            NumberSource::Float(
+                ref ip,
+                ref fp,
+                Some(Exp {
+                    ref sign,
+                    ref value,
+                    ..
+                }),
+            ) => format!(
+                "{}.{}e{}{}",
+                format_int(ip),
+                format_int(fp),
+                format_sign(sign),
+                value
+            ).parse()
+                .unwrap(),
         }
     }
 
@@ -231,7 +255,7 @@ impl NumberSource {
         let value = self.value();
         TokenData::Number(NumberLiteral {
             source: Some(self),
-            value: value
+            value: value,
         })
     }
 }
@@ -240,14 +264,14 @@ impl NumberSource {
 pub struct Exp {
     pub e: CharCase,
     pub sign: Option<Sign>,
-    pub value: String
+    pub value: String,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Radix {
     Bin(CharCase),
     Oct(Option<CharCase>),
-    Hex(CharCase)
+    Hex(CharCase),
 }
 
 impl Radix {
@@ -255,7 +279,7 @@ impl Radix {
         match *self {
             Radix::Bin(_) => 2,
             Radix::Oct(_) => 8,
-            Radix::Hex(_) => 16
+            Radix::Hex(_) => 16,
         }
     }
 }
@@ -263,7 +287,7 @@ impl Radix {
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum CharCase {
     LowerCase,
-    UpperCase
+    UpperCase,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -273,5 +297,5 @@ pub enum Sign {
     Plus,
 
     #[cfg_attr(test, serde(rename = "-"))]
-    Minus
+    Minus,
 }
