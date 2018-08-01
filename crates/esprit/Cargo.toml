@@ -1,0 +1,38 @@
+[package]
+name = "esprit"
+version = "0.0.5"
+authors = ["Dave Herman <dherman@mozilla.com>"]
+license = "MIT"
+description = "An ECMAScript parser library."
+documentation = "https://esprit.surge.sh"
+homepage = "https://esprit.surge.sh"
+repository = "https://github.com/dherman/esprit"
+exclude = ["tests/esprima/**/*"]
+
+[dependencies]
+serde = "1.0"
+serde_json = "1.0"
+tristate = "0.1.1"
+unjson = { version = "0.0.5", path = "../unjson" }
+joker = { version = "0.0.5", path = "../joker" }
+easter = { version = "0.0.5", path = "../easter" }
+estree = { version = "0.0.5", path = "../estree" }
+
+# [dev-dependencies]
+# rustc-test = "0.1"
+# glob = "0.2"
+#
+# [[test]]
+# name = "parser-test"
+# harness = false
+#
+# [profile.bench]
+# # It makes little sense to run cross-crate benchmarks w/o lto
+# # (difference is significant)
+# lto = true
+#
+# [[bench]]
+# name = "parser-bench"
+# harness = false
+# test = true
+
