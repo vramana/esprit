@@ -64,6 +64,11 @@ mod pretty {
         tab_space: i32,
     }
 
+    enum OutText<'a> {
+        Text(&'a str),
+        LineIndent(i32),
+    }
+
     impl Document {
         fn last(&self) -> i32 {
             self.docs.len() as i32 - 1
@@ -101,7 +106,9 @@ mod pretty {
         fn push_hard_break(&mut self) -> DocHandle {
             self.push(Doc::Line(Hard))
         }
+    }
 
+    impl Document {
         fn fits(&self, next: Command, rest_commands: &Vec<Command>, width: i32) -> bool {
             let mut width = width;
             let mut cmds = vec![next];
@@ -166,7 +173,7 @@ mod pretty {
             return false;
         }
 
-        fn pretty(&mut self, max_width: i32) -> String {
+        fn pretty(&self, max_width: i32) -> String {
             let top_doc_handle = DocHandle(self.docs.len() as i32 - 1);
             let mut cmds = vec![Command {
                 indent: 0,
@@ -182,8 +189,8 @@ mod pretty {
                 let index = cmd.handle.index();
                 let doc = &self.docs[index];
 
-                match doc {
-                    &Doc::Concat(ref handles) => {
+                match *doc {
+                    Doc::Concat(ref handles) => {
                         for handle in handles.iter().rev() {
                             let new_cmd = Command {
                                 indent: cmd.indent,
@@ -193,11 +200,11 @@ mod pretty {
                             cmds.push(new_cmd);
                         }
                     }
-                    &Doc::Text(ref text) => {
+                    Doc::Text(ref text) => {
                         pos += text.len() as i32;
-                        out.push(text.clone())
+                        out.push(OutText::Text(text))
                     }
-                    &Doc::Nest(i, handle) => {
+                    Doc::Nest(i, handle) => {
                         let new_cmd = Command {
                             indent: cmd.indent + i,
                             mode: cmd.mode,
@@ -205,7 +212,7 @@ mod pretty {
                         };
                         cmds.push(new_cmd);
                     }
-                    &Doc::Group(handle, mode) => match cmd.mode {
+                    Doc::Group(handle, mode) => match cmd.mode {
                         Flat => {
                             if !should_remeasure {
                                 let new_cmd = Command {
@@ -234,11 +241,11 @@ mod pretty {
                             cmds.push(next)
                         }
                     },
-                    &Doc::Line(line_mode) => match cmd.mode {
+                    Doc::Line(line_mode) => match cmd.mode {
                         Flat => {
                             if !line_mode.hard() {
                                 if !line_mode.soft() {
-                                    out.push(String::from(" "));
+                                    out.push(OutText::Text(" "));
                                     pos += 1;
                                 }
                             } else {
@@ -252,38 +259,49 @@ mod pretty {
                                 // trim multiple new lines to single new line
                                 let is_last_string_traling_white_space = {
                                     let last_string = &out[index];
-                                    last_string.trim().is_empty() && last_string.contains("\n")
+                                    match last_string {
+                                        OutText::Text(last_string) => {
+                                            last_string.trim().is_empty()
+                                                && last_string.contains("\n")
+                                        }
+                                        OutText::LineIndent(_) => true,
+                                    }
                                 };
 
                                 if is_last_string_traling_white_space {
-                                    out[index] = String::from("\n");
+                                    out[index] = OutText::Text("\n");
                                 }
                             }
 
                             if line_mode == Literal {
-                                out.push(String::from("\n"));
+                                out.push(OutText::Text("\n"));
                                 pos = 0;
                             } else {
-                                out.push(self.make_line_indent(cmd.indent));
+                                out.push(OutText::LineIndent(cmd.indent));
                                 pos = cmd.indent * self.tab_space;
                             }
                         }
                     },
-                    _ => {}
                 }
             }
 
-            // TODO revisit later. very bad may to concatenate.
-            out.iter().fold("".to_string(), |a, b| a + &b)
+            self.print_out_text(out)
         }
 
-        fn make_line_indent(&self, indent: i32) -> String {
-            println!("Indent {}", indent);
-            let mut s = String::from("\n");
-            for i in 0..(self.tab_space * indent) {
-                s.push_str(" ");
+        fn print_out_text(&self, out_text: Vec<OutText>) -> String {
+            let mut t = String::new();
+            for o in out_text {
+                match o {
+                    OutText::Text(text) => t.push_str(text),
+                    OutText::LineIndent(n) => {
+                        t.push_str("\n");
+                        for _ in 0..(n * self.tab_space) {
+                            t.push_str(" ");
+                        }
+                    }
+                }
             }
-            s
+            t
         }
     }
 
@@ -296,18 +314,18 @@ mod pretty {
 
     impl Tree {
         fn print_children(&self, document: &mut Document) -> DocHandle {
-            let len = self.children.len();
+            let length = self.children.len();
 
-            if len == 1 {
+            if length == 1 {
                 return self.children[0].print_tree(document);
             }
 
-            let mut handles = Vec::with_capacity(len * 2 + 1);
+            let mut handles = Vec::with_capacity(length * 2 + 1);
             let comma_handle = document.push_text(",");
-            for i in 0..len {
-                let child_handle = self.children[i].print_tree(document);
+            for (index, child) in self.children.iter().enumerate() {
+                let child_handle = child.print_tree(document);
                 handles.push(child_handle);
-                if i != len - 1 {
+                if index != length - 1 {
                     handles.push(comma_handle);
                     handles.push(document.push_soft_space());
                 }
@@ -320,12 +338,16 @@ mod pretty {
         }
 
         fn print_bracket(&self, document: &mut Document) -> DocHandle {
-            if self.children.len() == 0 {
-                return document.push_text("");
-            }
+            // if self.children.len() == 0 {
+            //     return document.push_text("");
+            // }
 
             let children_handle = self.print_children(document);
-            let soft_space_handle = document.push_soft_space();
+            let soft_space_handle = if self.children.len() == 0 {
+                document.push_soft_break()
+            } else {
+                document.push_soft_space()
+            };
             let handle = document.push_concat(vec![soft_space_handle, children_handle]);
 
             let handles = vec![
@@ -370,7 +392,7 @@ mod pretty {
         c.print_tree(&mut d);
 
         println!("{:?}", d.docs);
-        println!("{}", d.pretty(30));
+        println!("{}", d.pretty(20));
     }
 
 }
