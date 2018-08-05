@@ -295,9 +295,7 @@ mod pretty {
                     OutText::Text(text) => t.push_str(text),
                     OutText::LineIndent(n) => {
                         t.push_str("\n");
-                        for _ in 0..(n * self.tab_space) {
-                            t.push_str(" ");
-                        }
+                        t.push_str(&" ".repeat((n * self.tab_space) as usize));
                     }
                 }
             }
