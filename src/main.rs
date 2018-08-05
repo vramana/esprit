@@ -181,7 +181,7 @@ mod pretty {
                 handle: top_doc_handle,
             }];
 
-            let mut out = vec![];
+            let mut out_text = vec![];
             let mut pos = 0;
             let mut should_remeasure = false;
 
@@ -202,7 +202,7 @@ mod pretty {
                     }
                     Doc::Text(ref text) => {
                         pos += text.len() as i32;
-                        out.push(OutText::Text(text))
+                        out_text.push(OutText::Text(text))
                     }
                     Doc::Nest(i, handle) => {
                         let new_cmd = Command {
@@ -245,7 +245,7 @@ mod pretty {
                         Flat => {
                             if !line_mode.hard() {
                                 if !line_mode.soft() {
-                                    out.push(OutText::Text(" "));
+                                    out_text.push(OutText::Text(" "));
                                     pos += 1;
                                 }
                             } else {
@@ -254,11 +254,11 @@ mod pretty {
                         }
                         Break => {
                             println!("{:?}, {:?}", cmd, doc);
-                            if (out.len() > 0) {
-                                let index = out.len() - 1;
-                                // trim multiple new lines to single new line
+                            // trim multiple new lines to single new line
+                            if (out_text.len() > 0) {
+                                let index = out_text.len() - 1;
                                 let is_last_string_traling_white_space = {
-                                    let last_string = &out[index];
+                                    let last_string = &out_text[index];
                                     match last_string {
                                         OutText::Text(last_string) => {
                                             last_string.trim().is_empty()
@@ -269,15 +269,15 @@ mod pretty {
                                 };
 
                                 if is_last_string_traling_white_space {
-                                    out[index] = OutText::Text("\n");
+                                    out_text[index] = OutText::Text("\n");
                                 }
                             }
 
                             if line_mode == Literal {
-                                out.push(OutText::Text("\n"));
+                                out_text.push(OutText::Text("\n"));
                                 pos = 0;
                             } else {
-                                out.push(OutText::LineIndent(cmd.indent));
+                                out_text.push(OutText::LineIndent(cmd.indent));
                                 pos = cmd.indent * self.tab_space;
                             }
                         }
@@ -285,7 +285,7 @@ mod pretty {
                 }
             }
 
-            self.print_out_text(out)
+            self.print_out_text(out_text)
         }
 
         fn print_out_text(&self, out_text: Vec<OutText>) -> String {
@@ -390,7 +390,7 @@ mod pretty {
         c.print_tree(&mut d);
 
         println!("{:?}", d.docs);
-        println!("{}", d.pretty(20));
+        println!("{}", d.pretty(40));
     }
 
 }
