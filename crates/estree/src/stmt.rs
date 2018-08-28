@@ -2,7 +2,6 @@ use easter::stmt::{Stmt, Block, ForHead, ForInHead, ForOfHead, StmtListItem, Cas
 use easter::decl::Decl;
 use easter::punc::Semi;
 use easter::patt::Patt;
-use easter::cover::IntoAssignPatt;
 use unjson::ty::Object;
 use unjson::{Unjson, ExtractField};
 
@@ -67,7 +66,7 @@ impl IntoForInHead for Object {
             }
             _ => {
                 let expr = self.into_expr()?;
-                match expr.into_assign_patt() {
+                match expr.into_assign_pattern() {
                     Ok(patt) => ForInHead::Patt(patt),
                     _ => { return Err(Error::InvalidLHS("left")); }
                 }
@@ -100,7 +99,7 @@ impl IntoForOfHead for Object {
             },
             _ => {
                 let expr = self.into_expr()?;
-                match expr.into_assign_patt() {
+                match expr.into_assign_pattern() {
                     Ok(patt) => ForOfHead::Patt(patt),
                     _ => { return Err(Error::InvalidLHS("left")); }
                 }

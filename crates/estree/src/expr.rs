@@ -41,13 +41,13 @@ impl IntoExpr for Object {
                 let str = self.extract_string("operator")?;
                 let right = Box::new(self.extract_expr("right")?);
                 match &str[..] {
-                    "=" => Expr::Assign(None, self.extract_assign_patt("left")?, right),
+                    "=" => Expr::Assign(None, Box::new(self.extract_assign_patt("left")?), right),
                     _ => {
                         let op: Assop = match str.parse() {
                             Ok(op) => op,
                             Err(_) => { return string_error("assignment operator", str); }
                         };
-                        Expr::BinAssign(None, op, self.extract_assign_target("left")?, right)
+                        Expr::BinAssign(None, op, Box::new(self.extract_assign_target("left")?), right)
                     }
                 }
             }

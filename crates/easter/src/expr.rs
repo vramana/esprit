@@ -3,11 +3,12 @@ use std::fmt::{Debug, Formatter};
 use joker::track::{TrackingRef, TrackingMut, Span, Untrack};
 use joker::token::{NumberLiteral, StringLiteral, RegExpLiteral};
 
-use obj::{DotKey, Prop};
+use obj::{DotKey, Prop, PropVal};
 use fun::Fun;
 use punc::{Unop, Binop, Assop, Logop};
 use id::Id;
-use patt::{Patt, AssignTarget};
+use patt::{Patt, RestPatt, CompoundPatt, PropPatt};
+use cover;
 
 #[derive(PartialEq, Debug, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum ExprListItem {
@@ -26,12 +27,12 @@ pub enum Expr {
     Unop(Option<Span>, Unop, Box<Expr>),
     Binop(Option<Span>, Binop, Box<Expr>, Box<Expr>),
     Logop(Option<Span>, Logop, Box<Expr>, Box<Expr>),
-    PreInc(Option<Span>, Box<AssignTarget>),
-    PostInc(Option<Span>, Box<AssignTarget>),
-    PreDec(Option<Span>, Box<AssignTarget>),
-    PostDec(Option<Span>, Box<AssignTarget>),
-    Assign(Option<Span>, Patt<AssignTarget>, Box<Expr>),
-    BinAssign(Option<Span>, Assop, AssignTarget, Box<Expr>),
+    PreInc(Option<Span>, Box<Expr>),
+    PostInc(Option<Span>, Box<Expr>),
+    PreDec(Option<Span>, Box<Expr>),
+    PostDec(Option<Span>, Box<Expr>),
+    Assign(Option<Span>, Box<Patt<Expr>>, Box<Expr>),
+    BinAssign(Option<Span>, Assop, Box<Expr>, Box<Expr>),
     Cond(Option<Span>, Box<Expr>, Box<Expr>, Box<Expr>),
     Call(Option<Span>, Box<Expr>, Vec<ExprListItem>),
     New(Option<Span>, Box<Expr>, Option<Vec<ExprListItem>>),
@@ -44,6 +45,83 @@ pub enum Expr {
     Number(Option<Span>, NumberLiteral),
     RegExp(Option<Span>, RegExpLiteral),
     String(Option<Span>, StringLiteral)
+}
+
+impl Expr {
+    pub fn is_assignable(&self) -> bool  {
+        match self {
+            Expr::Dot(_, _, _)
+          | Expr::Brack(_, _, _)
+          | Expr::Id(_) => true,
+          _ => false
+        }
+    }
+
+    pub fn into_assignable(self) -> Result<Expr, cover::Error>  {
+        match self {
+            Expr::Dot(_, _, _)
+          | Expr::Brack(_, _, _)
+          | Expr::Id(_) => Ok(self),
+          _ => Err(cover::Error::InvalidAssignTarget(*self.tracking_ref()))
+        }
+    }
+
+
+    pub fn into_assign_pattern(self) -> Result<Patt<Expr>, cover::Error> {
+        match self {
+            Expr::Obj(location, props) => {
+                let mut prop_patts = Vec::with_capacity(props.len());
+                for prop in props {
+                    prop_patts.push(prop.into_assign_prop()?);
+                }
+                Ok(Patt::Compound(CompoundPatt::Obj(location, prop_patts)))
+            }
+            Expr::Arr(location, mut exprs) => {
+                let mut patts = Vec::with_capacity(exprs.len());
+                let mut rest = None;
+                if let Some(last) = exprs.pop() {
+                    if let Some(ExprListItem::Spread(None, expr)) = last {
+                        rest = Some(Box::new(RestPatt {
+                            location: None,
+                            patt: expr.into_assign_pattern()?
+                        }));
+                    } else {
+                        exprs.push(last);
+                    }
+                }
+                for expr in exprs {
+                    patts.push(match expr {
+                        Some(ExprListItem::Expr(expr)) => Some(expr.into_assign_pattern()?),
+                        Some(ExprListItem::Spread(loc, _)) => { return Err(cover::Error::InvalidAssignTarget(loc)); }
+                        None => None
+                    });
+                }
+                Ok(Patt::Compound(CompoundPatt::Arr(location, patts, rest)))
+            }
+            _ => { return self.into_assignable().map(Patt::Simple); }
+        }
+    }
+}
+
+
+
+pub trait IntoAssignProp {
+    fn into_assign_prop(self) -> Result<PropPatt<Expr>, cover::Error>;
+}
+
+impl IntoAssignProp for Prop {
+    fn into_assign_prop(self) -> Result<PropPatt<Expr>, cover::Error> {
+        let location = *self.tracking_ref();
+        Ok(match self {
+            Prop::Regular(location, key, PropVal::Init(expr)) => {
+                PropPatt::Regular(location, key, expr.into_assign_pattern()?)
+            }
+            Prop::Shorthand(id) => {
+                PropPatt::Shorthand(id)
+            }
+            _ => { return Err(cover::Error::InvalidPropPatt(location)); }
+        })
+    }
 }
 
 impl PartialEq for Expr {

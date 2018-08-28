@@ -3,10 +3,9 @@ use unjson::{ExtractField, Unjson};
 use easter::id::Id;
 use easter::expr::{Expr, ExprListItem};
 use easter::stmt::{Stmt, Block, StmtListItem, Case, Catch, Script};
-use easter::patt::{Patt, RestPatt, AssignTarget};
+use easter::patt::{Patt, RestPatt};
 use easter::obj::Prop;
 use easter::decl::Dtor;
-use easter::cover::{IntoAssignTarget, IntoAssignPatt};
 use easter::fun::Params;
 
 use tag::{Tag, TagOf};
@@ -22,8 +21,8 @@ use decl::IntoDecl;
 pub trait ExtractNode {
     fn extract_id(&mut self, &'static str) -> Result<Id>;
     fn extract_id_opt(&mut self, &'static str) -> Result<Option<Id>>;
-    fn extract_assign_target(&mut self, &'static str) -> Result<AssignTarget>;
-    fn extract_assign_patt(&mut self, &'static str) -> Result<Patt<AssignTarget>>;
+    fn extract_assign_target(&mut self, &'static str) -> Result<Expr>;
+    fn extract_assign_patt(&mut self, &'static str) -> Result<Patt<Expr>>;
     fn extract_stmt(&mut self, &'static str) -> Result<Stmt>;
     fn extract_expr(&mut self, &'static str) -> Result<Expr>;
     fn extract_expr_opt(&mut self, &'static str) -> Result<Option<Expr>>;
@@ -63,17 +62,17 @@ impl ExtractNode for Object {
         })
     }
 
-    fn extract_assign_target(&mut self, name: &'static str) -> Result<AssignTarget> {
+    fn extract_assign_target(&mut self, name: &'static str) -> Result<Expr> {
         let expr = self.extract_expr(name)?;
-        match expr.into_assign_target() {
+        match expr.into_assignable() {
             Ok(patt) => Ok(patt),
             _ => Err(Error::InvalidLHS(name))
         }
     }
 
-    fn extract_assign_patt(&mut self, name: &'static str) -> Result<Patt<AssignTarget>> {
+    fn extract_assign_patt(&mut self, name: &'static str) -> Result<Patt<Expr>> {
         let expr = self.extract_expr(name)?;
-        match expr.into_assign_patt() {
+        match expr.into_assign_pattern() {
             Ok(patt) => Ok(patt),
             _ => Err(Error::InvalidLHS(name))
         }

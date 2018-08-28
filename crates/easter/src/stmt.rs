@@ -4,7 +4,7 @@ use joker::token::StringLiteral;
 use id::Id;
 use expr::Expr;
 use decl::{Decl, Dtor, ConstDtor, Import, Export};
-use patt::{Patt, AssignTarget};
+use patt::{Patt};
 use punc::Semi;
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
@@ -94,7 +94,7 @@ pub enum ForInHead {
     Var(Option<Span>, Patt<Id>),
     Let(Option<Span>, Patt<Id>),
     Const(Option<Span>, Patt<Id>),
-    Patt(Patt<AssignTarget>)
+    Patt(Patt<Expr>)
 }
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
@@ -102,7 +102,7 @@ pub enum ForOfHead {
     Var(Option<Span>, Patt<Id>),
     Let(Option<Span>, Patt<Id>),
     Const(Option<Span>, Patt<Id>),
-    Patt(Patt<AssignTarget>)
+    Patt(Patt<Expr>)
 }
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]

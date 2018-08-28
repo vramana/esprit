@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![feature(box_syntax, box_patterns)]
 
 extern crate easter;
 extern crate esprit;
@@ -15,7 +16,7 @@ extern crate test;
 extern crate unjson;
 
 use easter::expr::Expr;
-use easter::patt::{AssignTarget, Patt};
+use easter::patt::{Patt};
 use easter::stmt::{Stmt, StmtListItem};
 use esprit::script;
 use estree::IntoScript;
@@ -46,7 +47,7 @@ fn as_ref_test(tests: &mut Vec<TestDescAndFn>) {
         let mut ast = script("foobar = 17;").unwrap();
         ast.untrack();
         match ast.items.first().unwrap() {
-            &StmtListItem::Stmt(Stmt::Expr(_, Expr::Assign(_, Patt::Simple(AssignTarget::Id(ref id)), _), _)) => {
+            &StmtListItem::Stmt(Stmt::Expr(_, Expr::Assign(_, box Patt::Simple(Expr::Id(ref id)), _), _)) => {
                 assert_eq!(id.name.as_ref(), "foobar");
             }
             _ => { panic!("unexpected AST structure"); }

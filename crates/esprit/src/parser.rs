@@ -10,7 +10,7 @@ use easter::fun::{Fun, Params};
 use easter::obj::{PropKey, PropVal, Prop, DotKey};
 use easter::id::{Id, IdExt};
 use easter::punc::{Unop, UnopTag, ToOp, Op};
-use easter::cover::{IntoAssignTarget, IntoAssignPatt};
+// use easter::cover::{IntoAssignTarget, IntoAssignPatt};
 
 use std::rc::Rc;
 use std::mem::replace;
@@ -871,7 +871,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
             TokenData::Reserved(Reserved::In) => {
                 self.reread(TokenData::Reserved(Reserved::In));
                 let lhs_location = *lhs.tracking_ref();
-                let lhs = match lhs.into_assign_patt() {
+                let lhs = match lhs.into_assign_pattern() {
                     Ok(lhs) => lhs,
                     Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
                 };
@@ -881,7 +881,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
             TokenData::Identifier(Name::Atom(Atom::Of)) => {
                 self.reread(TokenData::Identifier(Name::Atom(Atom::Of)));
                 let lhs_location = *lhs.tracking_ref();
-                let lhs = match lhs.into_assign_patt() {
+                let lhs = match lhs.into_assign_pattern() {
                     Ok(lhs) => lhs,
                     Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
                 };
@@ -1515,7 +1515,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
         let mut arg = self.lhs_expression()?;
         if let Some(postfix) = self.match_postfix_operator_opt()? {
             let arg_location = *arg.tracking_ref();
-            arg = match arg.into_assign_target().map(Box::new) {
+            arg = match arg.into_assignable().map(Box::new) {
                 Ok(target) => {
                     match postfix {
                         Postfix::Inc(location) => Expr::PostInc(Some(location), target),
@@ -1533,7 +1533,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
                 }
                 _ => {
                     let arg_location = *arg.tracking_ref();
-                    arg = match arg.into_assign_target().map(Box::new) {
+                    arg = match arg.into_assignable().map(Box::new) {
                         Ok(target) => {
                             match prefix {
                                 Prefix::Inc(location) => Expr::PreInc(Some(location), target),
@@ -1635,21 +1635,21 @@ impl<I: Iterator<Item=char>> Parser<I> {
         let token = self.read_op()?;
         let left_location = *left.tracking_ref();
         if token.value == TokenData::Assign {
-            let left = match left.into_assign_patt() {
+            let left = match left.into_assign_pattern() {
                 Ok(left) => left,
                 Err(cover_err) => { return Err(Error::InvalidLHS(left_location, cover_err)); }
             };
             let right = self.assignment_expression()?;
             let location = span(&left, &right);
-            return Ok(Expr::Assign(location, left, Box::new(right)));
+            return Ok(Expr::Assign(location, Box::new(left), Box::new(right)));
         } else if let Some(op) = token.to_assop() {
-            let left = match left.into_assign_target() {
+            let left = match left.into_assignable() {
                 Ok(left) => left,
                 Err(cover_err) => { return Err(Error::InvalidLHS(left_location, cover_err)); }
             };
             let right = self.assignment_expression()?;
             let location = span(&left, &right);
-            return Ok(Expr::BinAssign(location, op, left, Box::new(right)));
+            return Ok(Expr::BinAssign(location, op, Box::new(left), Box::new(right)));
         }
         self.lexer.unread_token(token);
         Ok(left)
