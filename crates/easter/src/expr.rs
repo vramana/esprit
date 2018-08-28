@@ -47,6 +47,7 @@ pub enum Expr {
     String(Option<Span>, StringLiteral)
 }
 
+// TODO May be move this back into cover. Or remove it altogether and bring Error here.
 impl Expr {
     pub fn is_assignable(&self) -> bool  {
         match self {
@@ -103,8 +104,7 @@ impl Expr {
     }
 }
 
-
-
+// TODO May be move this back into cover. Or remove it altogether and bring Error here.
 pub trait IntoAssignProp {
     fn into_assign_prop(self) -> Result<PropPatt<Expr>, cover::Error>;
 }
