@@ -349,7 +349,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
                         break;
                     }
                     _ => {
-                        list.push(this.pattern()?);
+                        list.push(this.parameter_pattern()?);
                         if !this.matches(TokenData::Comma)? {
                             break;
                         }
@@ -364,6 +364,31 @@ impl<I: Iterator<Item=char>> Parser<I> {
             })
         })
     }
+
+    fn parameter_pattern(&mut self) -> Result<Patt<Id>> {
+        match self.peek()?.value {
+            TokenData::Identifier(_) => {
+                self.span(&mut |this| {
+                    let id = this.id(true)?;
+                    match this.peek()?.value {
+                        TokenData::Assign => {
+                            // TODO Should this use reread instead?
+                            let _ = this.read();
+                            Ok(Patt::Assign(None, id, Box::new(this.primary_expression()?)))
+                        },
+                        TokenData::Comma | TokenData::RParen => Ok(Patt::Simple(id)),
+                        _ => this.unexpected()
+                    }
+                })
+
+            }
+            _ => {
+                let patt = self.binding_pattern()?;
+                Ok(Patt::Compound(patt))
+            }
+        }
+    }
+
 
     fn pattern(&mut self) -> Result<Patt<Id>> {
         match self.peek()?.value {
@@ -741,6 +766,10 @@ impl<I: Iterator<Item=char>> Parser<I> {
                         let rhs = self.allow_in(false, |this| this.assignment_expression())?;
                         self.more_for_head(&var_location, Dtor::from_compound_init(patt, rhs), ForHead::Var)
                     }
+                    Patt::Assign(_, _, _) => {
+                        // TODO Probably there is illegal
+                        unimplemented!("for loop with assign pattern")
+                    }
                 }
             }
             TokenData::Comma
@@ -871,7 +900,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
             TokenData::Reserved(Reserved::In) => {
                 self.reread(TokenData::Reserved(Reserved::In));
                 let lhs_location = *lhs.tracking_ref();
-                let lhs = match lhs.into_assign_pattern() {
+                let lhs = match lhs.into_simple_or_compound_pattern() {
                     Ok(lhs) => lhs,
                     Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
                 };
@@ -881,7 +910,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
             TokenData::Identifier(Name::Atom(Atom::Of)) => {
                 self.reread(TokenData::Identifier(Name::Atom(Atom::Of)));
                 let lhs_location = *lhs.tracking_ref();
-                let lhs = match lhs.into_assign_pattern() {
+                let lhs = match lhs.into_simple_or_compound_pattern() {
                     Ok(lhs) => lhs,
                     Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
                 };
@@ -1635,7 +1664,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
         let token = self.read_op()?;
         let left_location = *left.tracking_ref();
         if token.value == TokenData::Assign {
-            let left = match left.into_assign_pattern() {
+            let left = match left.into_simple_or_compound_pattern() {
                 Ok(left) => left,
                 Err(cover_err) => { return Err(Error::InvalidLHS(left_location, cover_err)); }
             };

@@ -16,7 +16,6 @@ ES6/export-declaration/**
 # Array / object / default patterns
 **/*array-pattern*
 **/*object-pattern*
-# ES6/default-parameter-value/**
 expression/primary/object/migrated_003[4568]
 statement/iteration/pattern-in-for-in
 ES6/rest-parameter/rest-parameter-array

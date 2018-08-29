@@ -68,7 +68,7 @@ impl Expr {
     }
 
 
-    pub fn into_assign_pattern(self) -> Result<Patt<Expr>, cover::Error> {
+    pub fn into_simple_or_compound_pattern(self) -> Result<Patt<Expr>, cover::Error> {
         match self {
             Expr::Obj(location, props) => {
                 let mut prop_patts = Vec::with_capacity(props.len());
@@ -84,7 +84,7 @@ impl Expr {
                     if let Some(ExprListItem::Spread(None, expr)) = last {
                         rest = Some(Box::new(RestPatt {
                             location: None,
-                            patt: expr.into_assign_pattern()?
+                            patt: expr.into_simple_or_compound_pattern()?
                         }));
                     } else {
                         exprs.push(last);
@@ -92,7 +92,7 @@ impl Expr {
                 }
                 for expr in exprs {
                     patts.push(match expr {
-                        Some(ExprListItem::Expr(expr)) => Some(expr.into_assign_pattern()?),
+                        Some(ExprListItem::Expr(expr)) => Some(expr.into_simple_or_compound_pattern()?),
                         Some(ExprListItem::Spread(loc, _)) => { return Err(cover::Error::InvalidAssignTarget(loc)); }
                         None => None
                     });
@@ -114,7 +114,7 @@ impl IntoAssignProp for Prop {
         let location = *self.tracking_ref();
         Ok(match self {
             Prop::Regular(location, key, PropVal::Init(expr)) => {
-                PropPatt::Regular(location, key, expr.into_assign_pattern()?)
+                PropPatt::Regular(location, key, expr.into_simple_or_compound_pattern()?)
             }
             Prop::Shorthand(id) => {
                 PropPatt::Shorthand(id)

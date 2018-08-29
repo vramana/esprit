@@ -39,6 +39,7 @@ impl Display for Error {
             }
             &Error::UninitializedPattern(ref patt) => {
                 let ty = match *patt {
+                    Patt::Assign(_, _, _) => "assignment",
                     Patt::Compound(CompoundPatt::Arr(_, _, _)) => "array",
                     Patt::Compound(CompoundPatt::Obj(_, _)) => "object",
                     Patt::Simple(_) => "constant"

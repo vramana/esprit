@@ -66,7 +66,7 @@ impl IntoForInHead for Object {
             }
             _ => {
                 let expr = self.into_expr()?;
-                match expr.into_assign_pattern() {
+                match expr.into_simple_or_compound_pattern() {
                     Ok(patt) => ForInHead::Patt(patt),
                     _ => { return Err(Error::InvalidLHS("left")); }
                 }
@@ -99,7 +99,7 @@ impl IntoForOfHead for Object {
             },
             _ => {
                 let expr = self.into_expr()?;
-                match expr.into_assign_pattern() {
+                match expr.into_simple_or_compound_pattern() {
                     Ok(patt) => ForOfHead::Patt(patt),
                     _ => { return Err(Error::InvalidLHS("left")); }
                 }

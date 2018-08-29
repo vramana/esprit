@@ -72,7 +72,7 @@ impl ExtractNode for Object {
 
     fn extract_assign_patt(&mut self, name: &'static str) -> Result<Patt<Expr>> {
         let expr = self.extract_expr(name)?;
-        match expr.into_assign_pattern() {
+        match expr.into_simple_or_compound_pattern() {
             Ok(patt) => Ok(patt),
             _ => Err(Error::InvalidLHS(name))
         }
