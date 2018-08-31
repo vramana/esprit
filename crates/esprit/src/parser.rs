@@ -4,6 +4,7 @@ use joker::word::{Atom, Name, Reserved};
 use joker::lexer::Lexer;
 use easter::stmt::{Stmt, Block, StmtListItem, ForHead, ForInHead, ForOfHead, Case, Catch, Script, Dir, ModItem, Module};
 use easter::expr::{Expr, ExprListItem};
+use easter::fun::{FunctionKind};
 use easter::decl::{Decl, Dtor, ConstDtor, DtorExt};
 use easter::patt::{Patt, RestPatt, CompoundPatt};
 use easter::fun::{Fun, Params};
@@ -324,7 +325,7 @@ impl<I: Iterator<Item=char>> Parser<I> {
 
     fn function_declaration(&mut self) -> Result<Decl> {
         self.span(&mut |this| {
-            Ok(Decl::Fun(this.function(|this| this.id(true))?))
+            Ok(Decl::Fun(this.function(|this| this.id(true).map(Some))?))
         })
     }
 
@@ -437,16 +438,28 @@ impl<I: Iterator<Item=char>> Parser<I> {
         Ok(())
     }
 
-    fn function<Id, F>(&mut self, get_id: F) -> Result<Fun<Id>>
-        where F: Fn(&mut Self) -> Result<Id>
+    fn function<F>(&mut self, get_id: F) -> Result<Fun>
+        where F: Fn(&mut Self) -> Result<Option<Id>>
     {
         self.span(&mut |this| {
             this.reread(TokenData::Reserved(Reserved::Function));
             let generator = this.matches(TokenData::Star)?;
             let id = get_id(this)?;
+            let kind = match (id, generator) {
+                (Some(id), true) => FunctionKind::Generator(id),
+                (Some(id), false) => FunctionKind::Named(id),
+                (None, true) => FunctionKind::AnonymousGenerator,
+                (None, false) => FunctionKind::Anonymous
+            };
+
             let params = this.formal_parameters()?;
             let body = this.function_body(&params.list)?;
-            Ok(Fun { location: None, id: id, params: params, body: body, generator: generator })
+            Ok(Fun {
+                location: None,
+                kind: kind,
+                params: params,
+                body: body,
+            })
         })
     }
 
@@ -1288,12 +1301,11 @@ impl<I: Iterator<Item=char>> Parser<I> {
             TokenData::LParen => {
                 let params = self.formal_parameters()?;
                 let body = self.function_body(&params.list)?;
-                Prop::Method(Fun {
-                    location: span(key.tracking_ref(), body.tracking_ref()),
-                    id: key,
+                Prop::Method(key, Fun {
+                    location: span(&None, body.tracking_ref()),
+                    kind: FunctionKind::Anonymous,
                     params: params,
                     body: body,
-                    generator: false
                 })
             }
             TokenData::Comma | TokenData::RBrace => {
@@ -1361,12 +1373,11 @@ impl<I: Iterator<Item=char>> Parser<I> {
                 let key = self.property_key()?;
                 let params = self.formal_parameters()?;
                 let body = self.function_body(&params.list)?;
-                Ok(Prop::Method(Fun {
-                    location: span(key.tracking_ref(), body.tracking_ref()),
-                    id: key,
+                Ok(Prop::Method(key, Fun {
+                    location: span(&None, body.tracking_ref()),
+                    kind: FunctionKind::AnonymousGenerator,
                     params: params,
                     body: body,
-                    generator: true
                 }))
             }
             TokenData::Reserved(_) => {

@@ -1,20 +1,33 @@
-use easter::fun::Fun;
+use easter::fun::{ Fun, FunctionKind};
 use unjson::ty::Object;
 use unjson::ExtractField;
+// use serde_json::to_string_pretty;
 
 use result::Result;
 use node::ExtractNode;
 
-pub trait IntoFun<Id> {
-    fn into_fun(self, Id) -> Result<Fun<Id>>;
+pub trait IntoFun {
+    fn into_fun(self, FunctionKind) -> Result<Fun>;
 }
 
-impl<Id> IntoFun<Id> for Object {
-    fn into_fun(mut self, id: Id) -> Result<Fun<Id>> {
-        let generator = self.extract_bool_opt("generator")?.unwrap_or(false);
+impl IntoFun for Object {
+    fn into_fun(mut self, kind: FunctionKind) -> Result<Fun> {
+        // println!("{}", to_string_pretty(&self).unwrap());
+        let is_generator = self.extract_bool_opt("generator")?;
+        let kind = match (kind, is_generator) {
+            (FunctionKind::Named(id), Some(true)) => FunctionKind::Generator(id),
+            (FunctionKind::Anonymous, Some(true)) => FunctionKind::AnonymousGenerator,
+            (r @ _, _) => r
+        };
+
         let params = self.extract_params("params")?;
         let mut obj = self.extract_object("body")?;
         let body = obj.extract_script("body")?;
-        Ok(Fun { location: None, id: id, params: params, body: body, generator: generator })
+        Ok(Fun {
+            location: None,
+            kind: kind,
+            params: params,
+            body: body,
+        })
     }
 }

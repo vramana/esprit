@@ -1,3 +1,4 @@
+use easter::fun::{FunctionKind};
 use easter::obj::{Prop, PropKey, PropVal};
 use easter::expr::Expr;
 use unjson::ty::{Object, Ty};
@@ -24,8 +25,8 @@ impl IntoObj for Object {
         let val = match &kind[..] {
             "init" => {
                 if self.extract_bool("method")? {
-                    let fun = val.into_fun(key.into_prop_key()?)?;
-                    return Ok(Prop::Method(fun))
+                    let fun = val.into_fun(FunctionKind::Anonymous)?;
+                    return Ok(Prop::Method(key.into_prop_key()?, fun))
                 } else if self.extract_bool("shorthand")? {
                     return Ok(Prop::Shorthand(key.into_id()?));
                 } else {
@@ -34,7 +35,7 @@ impl IntoObj for Object {
             },
             "get" => PropVal::Get(None, val.extract_object("body")?.extract_script("body")?),
             "set" => {
-                let fun = val.into_fun(())?;
+                let fun = val.into_fun(FunctionKind::Anonymous)?;
                 let params = fun.params.list;
                 if params.len() != 1 {
                     return array_error(1, params.len());

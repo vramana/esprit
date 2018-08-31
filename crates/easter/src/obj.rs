@@ -20,7 +20,7 @@ impl Untrack for DotKey {
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum Prop {
     Regular(Option<Span>, PropKey, PropVal),
-    Method(Fun<PropKey>),
+    Method(PropKey, Fun),
     Shorthand(Id)
 }
 

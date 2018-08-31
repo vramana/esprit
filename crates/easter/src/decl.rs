@@ -22,7 +22,7 @@ pub enum Export {
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum Decl {
-    Fun(Fun<Id>),
+    Fun(Fun),
     Let(Option<Span>, Vec<Dtor>, Semi),
     Const(Option<Span>, Vec<ConstDtor>, Semi),
 }

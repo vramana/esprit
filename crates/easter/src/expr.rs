@@ -22,7 +22,7 @@ pub enum Expr {
     Id(Id),
     Arr(Option<Span>, Vec<Option<ExprListItem>>),
     Obj(Option<Span>, Vec<Prop>),
-    Fun(Fun<Option<Id>>),
+    Fun(Fun),
     Seq(Option<Span>, Vec<Expr>),
     Unop(Option<Span>, Unop, Box<Expr>),
     Binop(Option<Span>, Binop, Box<Expr>, Box<Expr>),

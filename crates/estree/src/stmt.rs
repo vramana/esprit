@@ -1,5 +1,6 @@
 use easter::stmt::{Stmt, Block, ForHead, ForInHead, ForOfHead, StmtListItem, Case, Catch};
 use easter::decl::Decl;
+use easter::fun::{FunctionKind};
 use easter::punc::Semi;
 use easter::patt::Patt;
 use unjson::ty::Object;
@@ -124,7 +125,8 @@ fn into_stmt_list_item(mut this: Object, allow_decl: bool) -> Result<StmtListIte
                 return node_type_error("statement", tag);
             }
             let id = this.extract_id("id")?;
-            return Ok(StmtListItem::Decl(Decl::Fun(this.into_fun(id)?)));
+            let decl_fn = Decl::Fun(this.into_fun(FunctionKind::Named(id))?);
+            return Ok(StmtListItem::Decl(decl_fn));
         }
         Tag::VariableDeclaration => {
             let dtors = this.extract_dtor_list("declarations")?;

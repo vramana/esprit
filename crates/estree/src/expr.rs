@@ -1,5 +1,6 @@
 use serde_json::value::Value;
 use easter::expr::{Expr, ExprListItem};
+use easter::fun::{FunctionKind};
 use easter::obj::DotKey;
 use easter::id::IdExt;
 use easter::punc::{Unop, Binop, Assop, Logop};
@@ -108,8 +109,15 @@ impl IntoExpr for Object {
                 Expr::Arr(None, elts)
             }
             Tag::FunctionExpression => {
-                let id = self.extract_id_opt("id")?;
-                let fun = self.into_fun(id)?;
+                let kind = match self.extract_id_opt("id")? {
+                    Some(id) => FunctionKind::Named(id),
+                    None => FunctionKind::Anonymous,
+                };
+                let fun = self.into_fun(kind)?;
+                Expr::Fun(fun)
+            }
+            Tag::ArrowFunctionExpression => {
+                let fun = self.into_fun(FunctionKind::Arrow)?;
                 Expr::Fun(fun)
             }
             Tag::SequenceExpression => {
