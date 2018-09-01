@@ -25,25 +25,23 @@ struct SpanTracker {
 }
 
 impl SpanTracker {
-    fn end<I>(&self, lexer: &Lexer<I>, value: TokenData) -> Token
-      where I: Iterator<Item=char>
-    {
+    fn end(&self, lexer: &Lexer, value: TokenData) -> Token {
         let end = lexer.posn();
         Token::new(self.start, end, value)
     }
 }
 
-pub struct Lexer<I> {
-    reader: Reader<I>,
+pub struct Lexer {
+    reader: Reader,
     lookahead: VecDeque<Token>,
     wordmap: WordMap,
     empty_line: bool
 }
 
-impl<I> Lexer<I> where I: Iterator<Item=char> {
+impl Lexer {
     // constructor
 
-    pub fn new(chars: I) -> Lexer<I> {
+    pub fn new<I>(chars: I) -> Lexer where I: Iterator<Item=char>  {
         Lexer {
             reader: Reader::new(chars),
             lookahead: VecDeque::with_capacity(2),

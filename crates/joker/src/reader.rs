@@ -1,17 +1,19 @@
 use track::Posn;
 use std::collections::VecDeque;
 
-pub struct Reader<I> {
-    chars: I,
+pub struct Reader {
+    chars: Vec<char>,
     ahead: VecDeque<char>,
+    curr_index: usize,
     curr_posn: Posn
 }
 
-impl<I> Reader<I> where I: Iterator<Item=char> {
-    pub fn new(chars: I) -> Reader<I> {
+impl Reader {
+    pub fn new<I>(chars: I) -> Reader where I: Iterator<Item=char> {
         Reader {
-            chars: chars,
+            chars: chars.collect(),
             ahead: VecDeque::with_capacity(4),
+            curr_index: 0,
             curr_posn: Posn::origin()
         }
     }
@@ -19,28 +21,30 @@ impl<I> Reader<I> where I: Iterator<Item=char> {
     pub fn peek(&mut self, n: usize) -> Option<char> {
         debug_assert!(n < self.ahead.capacity(), "Lookahead buffer can't hold that many items");
         for _ in self.ahead.len()..(n + 1) {
-            match self.chars.next() {
+            match self.chars.get(self.curr_index) {
                 Some(ch) => {
-                    self.ahead.push_back(ch)
+                    self.ahead.push_back(*ch)
                 }
                 None => {
                     return None
                 }
             }
         }
+        self.curr_index += 1;
         self.ahead.get(n).map(|&x| x)
     }
 
     pub fn curr_posn(&self) -> Posn { self.curr_posn }
 }
 
-impl<I> Iterator for Reader<I> where I: Iterator<Item=char> {
+impl Iterator for Reader {
     type Item = char;
 
     fn next(&mut self) -> Option<char> {
         let curr_char = self.ahead.pop_front().or_else(|| {
-            self.chars.next()
+            self.chars.get(self.curr_index).map(|x| *x)
         });
+        self.curr_index += 1;
 
         if (curr_char == Some('\r') && self.peek(0) != Some('\n')) ||
            curr_char == Some('\n') ||

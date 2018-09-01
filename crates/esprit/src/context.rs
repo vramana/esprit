@@ -16,7 +16,7 @@ pub trait WithContext {
       where F: FnOnce(&mut Self) -> Result<T>;
 }
 
-impl<I: Iterator<Item=char>> WithContext for Parser<I> {
+impl WithContext for Parser {
     fn with_labels<F>(&mut self, mut labels: Vec<Id>, label_type: LabelType, op: F) -> Result<Stmt>
       where F: FnOnce(&mut Self) -> Result<Stmt>
     {

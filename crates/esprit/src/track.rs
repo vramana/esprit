@@ -15,7 +15,7 @@ pub trait Tracking {
             T: TrackingMut;
 }
 
-impl<I> Tracking for Parser<I> where I: Iterator<Item=char> {
+impl Tracking for Parser {
     fn vec_span<T: TrackingRef>(&self, v: &Vec<T>) -> Option<Span> {
         let len = v.len();
         if len == 0 {
@@ -68,10 +68,9 @@ impl SpanTracker {
         SpanTracker { start: start }
     }
 
-    pub fn end_with_auto_semi<I, T, F>(&self, parser: &mut Parser<I>, newline: Newline, cons: F)
+    pub fn end_with_auto_semi<T, F>(&self, parser: &mut Parser, newline: Newline, cons: F)
         -> Result<T>
-      where I: Iterator<Item=char>,
-            F: FnOnce(Semi) -> T,
+      where F: FnOnce(Semi) -> T,
             T: TrackingMut
     {
         let before = parser.posn();

@@ -29,11 +29,11 @@ use stack::{Stack, Infix};
 use tristate::TriState;
 pub use tristate::TriState as Strict;
 
-pub struct Parser<I> {
+pub struct Parser {
     pub goal: Goal,
     pub validate: bool,       // should we do strict mode validation as eagerly as possible?
     pub deferred: Vec<Check>, // strict mode checks that haven't been performed yet
-    pub lexer: Lexer<I>,
+    pub lexer: Lexer,
     pub context: Context
 }
 
@@ -140,13 +140,13 @@ impl Program {
     }
 }
 
-impl<I: Iterator<Item=char>> Parser<I> {
-    pub fn from_chars(i: I) -> Parser<I> {
+impl Parser {
+    pub fn from_chars<I>(i: I) -> Parser where I: Iterator<Item=char> {
         let lexer = Lexer::new(i);
         Parser::new(true, lexer)
     }
 
-    pub fn new(validate: bool, lexer: Lexer<I>) -> Parser<I> {
+    pub fn new(validate: bool, lexer: Lexer) -> Parser {
         Parser {
             goal: Goal::Unknown,
             validate: validate,

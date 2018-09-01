@@ -17,7 +17,7 @@ pub trait State {
     fn has_arg_same_line(&mut self) -> Result<bool>;
 }
 
-impl<I: Iterator<Item=char>> State for Parser<I> {
+impl State for Parser {
     fn skip(&mut self) -> Result<()> {
         self.lexer.skip_token(false).map_err(Error::LexError)
     }
