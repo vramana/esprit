@@ -35,6 +35,11 @@ impl Reader {
     }
 
     pub fn curr_posn(&self) -> Posn { self.curr_posn }
+
+    pub fn seek(&mut self, last_index: usize, last_posn: Posn) {
+        self.curr_index = last_index;
+        self.curr_posn = last_posn;
+    }
 }
 
 impl Iterator for Reader {
