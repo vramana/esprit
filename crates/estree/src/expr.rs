@@ -117,7 +117,7 @@ impl IntoExpr for Object {
                 Expr::Fun(fun)
             }
             Tag::ArrowFunctionExpression => {
-                let fun = self.into_fun(FunctionKind::Arrow)?;
+                let fun = self.into_arrow_function()?;
                 Expr::Fun(fun)
             }
             Tag::SequenceExpression => {

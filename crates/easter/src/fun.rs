@@ -3,6 +3,7 @@ use joker::track::*;
 use id::Id;
 use patt::{Patt, RestPatt};
 use stmt::Script;
+use expr::Expr;
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub struct Params {
@@ -18,7 +19,10 @@ pub struct Fun {
     pub location: Option<Span>,
     pub kind: FunctionKind,
     pub params: Params,
+    // FIXME What is the more cleaner way to solve this? Arrow function need to store an expression
+    // conditionally enum totally does not provide the clean way to do it.
     pub body: Script,
+    pub body_expr: Option<Box<Expr>>
 }
 
 #[derive(Debug, PartialEq, Clone, Untrack)]

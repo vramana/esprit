@@ -43,6 +43,10 @@ pub struct Block {
     pub items: Vec<StmtListItem>
 }
 
+pub fn empty_script() -> Body<StmtListItem> {
+    Body { location: None, dirs: vec![], items: vec![]  }
+}
+
 pub type Script = Body<StmtListItem>;
 
 pub type Module = Body<ModItem>;
