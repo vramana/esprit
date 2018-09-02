@@ -663,6 +663,7 @@ impl Lexer {
             (Some('='), Some('='))                       => {
                 Ok(self.read_punc2_3('=', TokenData::Eq, TokenData::StrictEq))
             }
+            (Some('='), Some('>'))                       => Ok(self.read_punc2(TokenData::Arrow)),
             (Some('='), _)                               => Ok(self.read_punc(TokenData::Assign)),
             (Some('+'), Some('+'))                       => Ok(self.read_punc2(TokenData::Inc)),
             (Some('+'), Some('='))                       => {
