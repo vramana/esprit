@@ -6,6 +6,7 @@ pub struct Reader {
     ahead: VecDeque<char>,
     curr_index: usize,
     curr_posn: Posn
+
 }
 
 impl Reader {
@@ -30,11 +31,12 @@ impl Reader {
                 }
             }
         }
-        self.curr_index += 1;
         self.ahead.get(n).map(|&x| x)
     }
 
     pub fn curr_posn(&self) -> Posn { self.curr_posn }
+
+    pub fn curr_index(&self) -> usize { self.curr_index }
 
     pub fn seek(&mut self, last_index: usize, last_posn: Posn) {
         self.curr_index = last_index;
