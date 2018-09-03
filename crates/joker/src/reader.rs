@@ -5,8 +5,8 @@ pub struct Reader {
     chars: Vec<char>,
     ahead: VecDeque<char>,
     curr_index: usize,
+    peek_index: usize,
     curr_posn: Posn
-
 }
 
 impl Reader {
@@ -15,6 +15,7 @@ impl Reader {
             chars: chars.collect(),
             ahead: VecDeque::with_capacity(4),
             curr_index: 0,
+            peek_index: 0,
             curr_posn: Posn::origin()
         }
     }
@@ -22,8 +23,12 @@ impl Reader {
     pub fn peek(&mut self, n: usize) -> Option<char> {
         debug_assert!(n < self.ahead.capacity(), "Lookahead buffer can't hold that many items");
         for _ in self.ahead.len()..(n + 1) {
-            match self.chars.get(self.curr_index) {
+            match self.chars.get(self.peek_index) {
                 Some(ch) => {
+                    // peek_index is updated after looking at the current element unlike curr_index
+                    // with updates first then read the element later. Otherwise we can't peek 0th
+                    // element
+                    self.peek_index += 1;
                     self.ahead.push_back(*ch)
                 }
                 None => {
@@ -48,10 +53,10 @@ impl Iterator for Reader {
     type Item = char;
 
     fn next(&mut self) -> Option<char> {
+        self.curr_index += 1;
         let curr_char = self.ahead.pop_front().or_else(|| {
             self.chars.get(self.curr_index).map(|x| *x)
         });
-        self.curr_index += 1;
 
         if (curr_char == Some('\r') && self.peek(0) != Some('\n')) ||
            curr_char == Some('\n') ||

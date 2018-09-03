@@ -70,26 +70,41 @@ impl Lexer {
     }
 
     pub fn reread_token(&mut self) -> Token {
-        self.lookahead.pop_front().unwrap()
+        let token = self.lookahead.pop_front().unwrap();
+        let token_len = token.location.end.column - token.location.start.column;
+        let index = self.index() + token_len as usize;
+        self.reader.seek(index, token.location.end);
+
+        token
     }
 
     pub fn read_token(&mut self, operator: bool) -> Result<Token> {
         match self.lookahead.pop_front() {
-            Some(token) => Ok(token),
+            Some(token) => {
+                // let token_len = token.location.end.column - token.location.start.column;
+                // let index = self.index() + token_len as usize;
+                // self.reader.seek(index, token.location.end);
+
+                Ok(token)
+            },
             None => self.read_next_token(operator)
         }
     }
 
     pub fn unread_token(&mut self, token: Token) {
         debug_assert!(self.lookahead.len() < self.lookahead.capacity(), "Lookahead buffer is full");
+        // let token_len = token.location.end.column - token.location.start.column;
+        // let index = self.index() - token_len as usize;
+
+        // self.reader.seek(index, token.location.start)
         self.lookahead.push_front(token)
     }
 
     // source location
 
-    pub fn posn(&self) -> Posn {
-        self.reader.curr_posn()
-    }
+    pub fn posn(&self) -> Posn { self.reader.curr_posn() }
+
+    pub fn index(&self) -> usize { self.reader.curr_index() }
 
     fn start(&self) -> SpanTracker {
         SpanTracker { start: self.posn() }

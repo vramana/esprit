@@ -459,6 +459,7 @@ impl Parser {
                 kind: kind,
                 params: params,
                 body: body,
+                body_expr: None
             })
         })
     }
@@ -1306,6 +1307,7 @@ impl Parser {
                     kind: FunctionKind::Anonymous,
                     params: params,
                     body: body,
+                    body_expr: None
                 })
             }
             TokenData::Comma | TokenData::RBrace => {
@@ -1378,6 +1380,7 @@ impl Parser {
                     kind: FunctionKind::AnonymousGenerator,
                     params: params,
                     body: body,
+                    body_expr: None
                 }))
             }
             TokenData::Reserved(_) => {
