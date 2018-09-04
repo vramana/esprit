@@ -31,7 +31,6 @@ ES6/generator/*static*
 ES6/yield/**
 
 # Some other ES6 features
-ES6/arrow-function/**
 ES6/rest-parameter/arrow-rest-parameter-*
 ES6/class/**
 ES6/template-literals/**
@@ -46,3 +45,21 @@ tolerant-parse/**
 comment/html-comment.module
 statement/return/multiline_template
 
+# current arrow function failures
+ES6/arrow-function/array-binding-pattern/array-binding-pattern-01
+ES6/arrow-function/array-binding-pattern/array-binding-pattern-02
+ES6/arrow-function/array-binding-pattern/array-binding-pattern-03
+ES6/arrow-function/array-binding-pattern/array-binding-pattern-empty
+ES6/arrow-function/array-binding-pattern/elision
+ES6/arrow-function/migrated_0001
+ES6/arrow-function/migrated_0004
+ES6/arrow-function/migrated_0005
+ES6/arrow-function/migrated_0006
+ES6/arrow-function/migrated_0008
+ES6/arrow-function/migrated_0009
+ES6/arrow-function/migrated_0010
+ES6/arrow-function/migrated_0015
+ES6/arrow-function/migrated_0016
+ES6/arrow-function/object-binding-pattern/nested-cover-grammar
+ES6/arrow-function/object-binding-pattern/object-binding-pattern-01
+ES6/arrow-function/object-binding-pattern/object-binding-pattern-empty

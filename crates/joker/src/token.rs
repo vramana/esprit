@@ -21,6 +21,10 @@ impl Token {
             value: value,
         }
     }
+
+    pub fn len(&self) -> usize {
+        (self.location.end.column - self.location.start.column) as usize
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

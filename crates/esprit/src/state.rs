@@ -39,6 +39,7 @@ impl State for Parser {
     }
 
     fn expect(&mut self, expected: TokenData) -> Result<Token> {
+        // println!("expect {}", self.lexer.index());
         let token = self.read()?;
         if token.value != expected {
             return Err(Error::UnexpectedToken(token));

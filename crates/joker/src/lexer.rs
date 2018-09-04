@@ -52,6 +52,15 @@ impl Lexer {
 
     // public methods
 
+    pub fn seek(&mut self, index: usize, posn: Posn) {
+        // println!("lookahead Clear {:?}", self.lookahead);
+        self.lookahead.clear();
+        // println!("lookahead Cleared {:?}", self.lookahead);
+
+        self.reader.seek(index, posn);
+   }
+
+
     pub fn peek_token(&mut self, operator: bool) -> Result<&Token> {
         if self.lookahead.is_empty() {
             let token = self.read_next_token(operator)?;
@@ -70,15 +79,11 @@ impl Lexer {
     }
 
     pub fn reread_token(&mut self) -> Token {
-        let token = self.lookahead.pop_front().unwrap();
-        let token_len = token.location.end.column - token.location.start.column;
-        let index = self.index() + token_len as usize;
-        self.reader.seek(index, token.location.end);
-
-        token
+        self.lookahead.pop_front().unwrap()
     }
 
     pub fn read_token(&mut self, operator: bool) -> Result<Token> {
+        // println!("lookahead {:?}", self.lookahead);
         match self.lookahead.pop_front() {
             Some(token) => {
                 // let token_len = token.location.end.column - token.location.start.column;
@@ -105,6 +110,18 @@ impl Lexer {
     pub fn posn(&self) -> Posn { self.reader.curr_posn() }
 
     pub fn index(&self) -> usize { self.reader.curr_index() }
+
+    pub fn seek_index(&self) -> usize {
+        match self.lookahead.len() {
+            1 => self.index() - self.lookahead.front().unwrap().len(),
+            2 => {
+                let first_len = self.lookahead[0].len();
+                let second_len = self.lookahead[1].len();
+                self.index() - (first_len + second_len)
+            }
+            _ => self.reader.curr_index()
+        }
+    }
 
     fn start(&self) -> SpanTracker {
         SpanTracker { start: self.posn() }

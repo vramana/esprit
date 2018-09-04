@@ -3,6 +3,7 @@ use joker::token::{Token, TokenData};
 use joker::word::{Atom, Name, Reserved};
 use joker::lexer::Lexer;
 use easter::stmt::{Stmt, Block, StmtListItem, ForHead, ForInHead, ForOfHead, Case, Catch, Script, Dir, ModItem, Module};
+use easter::stmt::empty_script;
 use easter::expr::{Expr, ExprListItem};
 use easter::fun::{FunctionKind};
 use easter::decl::{Decl, Dtor, ConstDtor, DtorExt};
@@ -161,7 +162,7 @@ impl Parser {
     }
 
     fn unexpected<T>(&mut self) -> Result<T> {
-        Err(Error::UnexpectedToken(self.lexer.reread_token()))
+        Err(Error::UnexpectedToken(self.peek()?.clone()))
     }
 
     fn match_directive_opt(&mut self) -> Result<Option<Dir>> {
@@ -461,6 +462,36 @@ impl Parser {
                 body: body,
                 body_expr: None
             })
+        })
+    }
+
+    fn arrow_function(&mut self) -> Result<Fun> {
+        self.span(&mut |this| {
+            let kind = FunctionKind::Arrow;
+            let params = this.formal_parameters()?;
+            this.expect(TokenData::Arrow)?;
+            match this.peek()?.value {
+                TokenData::LBrace => {
+                    let body = this.function_body(&params.list)?;
+                    Ok(Fun {
+                        location: None,
+                        kind: kind,
+                        params: params,
+                        body: body,
+                        body_expr: None
+                    })
+                }
+                _ => {
+                    let expr = this.primary_expression()?;
+                    Ok(Fun {
+                        location: None,
+                        kind: kind,
+                        params: params,
+                        body: empty_script(),
+                        body_expr: Some(Box::new(expr))
+                    })
+                }
+            }
         })
     }
 
@@ -1194,7 +1225,13 @@ impl Parser {
         self.expect(TokenData::LParen)?;
         let result = self.allow_in(true, |this| this.expression())?;
         self.expect(TokenData::RParen)?;
-        Ok(result)
+        // println!("parsed right paren expression");
+        let match_arrow = self.matches_op(TokenData::Arrow)?;
+        // println!("match arrow {}", match_arrow);
+        match match_arrow {
+            true => self.unexpected(),
+            false => Ok(result)
+        }
     }
 
     // PrimaryExpression ::=
@@ -1209,6 +1246,11 @@ impl Parser {
     //   RegularExpressionLiteral
     //   "(" Expression ")"
     fn primary_expression(&mut self) -> Result<Expr> {
+        let posn = self.lexer.posn();
+        let index = self.lexer.seek_index();
+            // println!("primary {}", self.lexer.index());
+            // println!("primary {:?}", self.peek()?);
+
         let token = self.read()?;
         let location = token.location;
         Ok(match token.value {
@@ -1228,7 +1270,18 @@ impl Parser {
             }
             TokenData::LParen => {
                 self.lexer.unread_token(token);
-                return self.paren_expression();
+
+                return match self.paren_expression() {
+                    Err(_) => {
+                        // println!("parse arrow");
+                        self.lexer.seek(index, posn);
+                        self.arrow_function().map(Expr::Fun)
+                    }
+                    expr => {
+                        // println!("asdasd");
+                        expr
+                    }
+                }
             }
             // ES6: more cases
             _ => { return Err(Error::UnexpectedToken(token)); }
