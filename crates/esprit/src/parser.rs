@@ -391,6 +391,22 @@ impl Parser {
         }
     }
 
+    fn single_arrow_parameter(&mut self) -> Result<Params> {
+        self.span(&mut |this| {
+            let param = match this.peek()?.value {
+                TokenData::Identifier(_) =>  this.span(&mut |this| Ok(Patt::Simple(this.id(true)?))),
+                _ => this.unexpected()
+            }?;
+
+            Ok(Params {
+                location: None,
+                list: vec![param],
+                rest: None
+            })
+        })
+
+    }
+
 
     fn pattern(&mut self) -> Result<Patt<Id>> {
         match self.peek()?.value {
@@ -465,10 +481,13 @@ impl Parser {
         })
     }
 
-    fn arrow_function(&mut self) -> Result<Fun> {
+    fn arrow_function(&mut self, single_param: bool) -> Result<Fun> {
         self.span(&mut |this| {
             let kind = FunctionKind::Arrow;
-            let params = this.formal_parameters()?;
+            let params = match single_param {
+                true => this.single_arrow_parameter()?,
+                false => this.formal_parameters()?
+            };
             this.expect(TokenData::Arrow)?;
             match this.peek()?.value {
                 TokenData::LBrace => {
@@ -1241,6 +1260,7 @@ impl Parser {
     //   ArrayLiteral
     //   ObjectLiteral
     //   FunctionExpression
+    //   ArrowFunctionExpression
     //   ClassExpression
     //   GeneratorExpression
     //   RegularExpressionLiteral
@@ -1248,13 +1268,21 @@ impl Parser {
     fn primary_expression(&mut self) -> Result<Expr> {
         let posn = self.lexer.posn();
         let index = self.lexer.seek_index();
-            // println!("primary {}", self.lexer.index());
+            // println!("primary {}", index);
             // println!("primary {:?}", self.peek()?);
 
         let token = self.read()?;
         let location = token.location;
         Ok(match token.value {
-            TokenData::Identifier(name)          => Expr::Id(self.new_id(false, name, location)?),
+            TokenData::Identifier(name)          => {
+                let match_arrow = self.matches_op(TokenData::Arrow)?;
+                if match_arrow {
+                    self.lexer.seek(index, posn);
+                    self.arrow_function(true).map(Expr::Fun)?
+                } else {
+                    Expr::Id(self.new_id(false, name, location)?)
+                }
+            },
             TokenData::Reserved(Reserved::Null)  => Expr::Null(Some(location)),
             TokenData::Reserved(Reserved::This)  => Expr::This(Some(location)),
             TokenData::Reserved(Reserved::True)  => Expr::True(Some(location)),
@@ -1275,7 +1303,7 @@ impl Parser {
                     Err(_) => {
                         // println!("parse arrow");
                         self.lexer.seek(index, posn);
-                        self.arrow_function().map(Expr::Fun)
+                        self.arrow_function(false).map(Expr::Fun)
                     }
                     expr => {
                         // println!("asdasd");

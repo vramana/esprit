@@ -43,6 +43,8 @@ impl Reader {
 
     pub fn curr_index(&self) -> usize { self.curr_index }
 
+    pub fn peek_index(&self) -> usize { self.peek_index }
+
     pub fn seek(&mut self, last_index: usize, last_posn: Posn) {
         self.curr_index = last_index;
         self.curr_posn = last_posn;

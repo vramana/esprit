@@ -112,12 +112,13 @@ impl Lexer {
     pub fn index(&self) -> usize { self.reader.curr_index() }
 
     pub fn seek_index(&self) -> usize {
+        // println!("lookahead {:?}", self.lookahead);
+        // @cleanup Should we use offset everywhere here.
         match self.lookahead.len() {
             1 => self.index() - self.lookahead.front().unwrap().len(),
             2 => {
-                let first_len = self.lookahead[0].len();
-                let second_len = self.lookahead[1].len();
-                self.index() - (first_len + second_len)
+                let first_len = self.lookahead[0].location.start.offset as usize;
+                first_len
             }
             _ => self.reader.curr_index()
         }
