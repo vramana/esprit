@@ -55,7 +55,8 @@ pub enum Tag {
     TryStatement,
 
     AssignmentPattern,
-    ObjectPattern
+    ObjectPattern,
+    ArrayPattern
 }
 
 impl Display for Tag {
@@ -110,7 +111,8 @@ impl FromStr for Tag {
             "DebuggerStatement"     => Tag::DebuggerStatement,
             "TryStatement"          => Tag::TryStatement,
             "AssignmentPattern"     => Tag::AssignmentPattern,
-            "ObjectPattern"     => Tag::ObjectPattern,
+            "ObjectPattern"         => Tag::ObjectPattern,
+            "ArrayPattern"          => Tag::ArrayPattern,
             _ => { return Err(Error::InvalidTypeTag(String::from(s))); }
         })
     }
