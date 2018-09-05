@@ -501,7 +501,7 @@ impl Parser {
                     })
                 }
                 _ => {
-                    let expr = this.primary_expression()?;
+                    let expr = this.expression()?;
                     Ok(Fun {
                         location: None,
                         kind: kind,
