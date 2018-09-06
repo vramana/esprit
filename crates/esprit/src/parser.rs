@@ -1,59 +1,62 @@
-use joker::track::*;
-use joker::token::{Token, TokenData};
-use joker::word::{Atom, Name, Reserved};
-use joker::lexer::Lexer;
-use easter::stmt::{Stmt, Block, StmtListItem, ForHead, ForInHead, ForOfHead, Case, Catch, Script, Dir, ModItem, Module};
-use easter::stmt::empty_script;
+use easter::decl::{ConstDtor, Decl, Dtor, DtorExt};
 use easter::expr::{Expr, ExprListItem};
-use easter::fun::{FunctionKind};
-use easter::decl::{Decl, Dtor, ConstDtor, DtorExt};
-use easter::patt::{Patt, RestPatt, CompoundPatt};
+use easter::fun::FunctionKind;
 use easter::fun::{Fun, Params};
-use easter::obj::{PropKey, PropVal, Prop, DotKey};
 use easter::id::{Id, IdExt};
-use easter::punc::{Unop, UnopTag, ToOp, Op};
+use easter::obj::{DotKey, Prop, PropKey, PropVal};
+use easter::patt::{CompoundPatt, Patt, RestPatt};
+use easter::punc::{Op, ToOp, Unop, UnopTag};
+use easter::stmt::empty_script;
+use easter::stmt::{
+    Block, Case, Catch, Dir, ForHead, ForInHead, ForOfHead, ModItem, Module, Script, Stmt,
+    StmtListItem,
+};
+use joker::lexer::Lexer;
+use joker::token::{Token, TokenData};
+use joker::track::*;
+use joker::word::{Atom, Name, Reserved};
 // use easter::cover::{IntoAssignTarget, IntoAssignPatt};
 
-use std::rc::Rc;
-use std::mem::replace;
-use context::{Context, LabelType, WithContext, Goal};
-use tokens::{First, Follows, HasLabelType};
 use atom::AtomExt;
-use track::Newline;
+use context::{Context, Goal, LabelType, WithContext};
+use error::{Check, Error};
+use expr::{Arguments, Deref, Postfix, Prefix, Suffix};
 use result::Result;
-use error::{Error, Check};
-use track::{SpanTracker, Tracking};
+use stack::{Infix, Stack};
 use state::State;
-use expr::{Deref, Suffix, Arguments, Prefix, Postfix};
-use stack::{Stack, Infix};
+use std::mem::replace;
+use std::rc::Rc;
+use tokens::{First, Follows, HasLabelType};
+use track::Newline;
+use track::{SpanTracker, Tracking};
 
 use tristate::TriState;
 pub use tristate::TriState as Strict;
 
 pub struct Parser {
     pub goal: Goal,
-    pub validate: bool,       // should we do strict mode validation as eagerly as possible?
+    pub validate: bool, // should we do strict mode validation as eagerly as possible?
     pub deferred: Vec<Check>, // strict mode checks that haven't been performed yet
     pub lexer: Lexer,
-    pub context: Context
+    pub context: Context,
 }
 
 enum ProgramItems {
     Script(Vec<StmtListItem>),
-    Module(Vec<ModItem>)
+    Module(Vec<ModItem>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Program {
     Ambiguous(Vec<Check>, Script),
-    Module(Module)
+    Module(Module),
 }
 
 impl TrackingRef for Program {
     fn tracking_ref(&self) -> &Option<Span> {
         match *self {
             Program::Ambiguous(_, ref script) => script.tracking_ref(),
-            Program::Module(ref module) => module.tracking_ref()
+            Program::Module(ref module) => module.tracking_ref(),
         }
     }
 }
@@ -62,7 +65,7 @@ impl TrackingMut for Program {
     fn tracking_mut(&mut self) -> &mut Option<Span> {
         match *self {
             Program::Ambiguous(_, ref mut script) => script.tracking_mut(),
-            Program::Module(ref mut module) => module.tracking_mut()
+            Program::Module(ref mut module) => module.tracking_mut(),
         }
     }
 }
@@ -71,25 +74,36 @@ impl Untrack for Program {
     fn untrack(&mut self) {
         match *self {
             Program::Ambiguous(_, ref mut script) => script.untrack(),
-            Program::Module(ref mut module) => module.untrack()
+            Program::Module(ref mut module) => module.untrack(),
         }
     }
 }
 
 fn unexpected_module(module: Module) -> Error {
-    let Module { location, dirs, items } = module;
+    let Module {
+        location,
+        dirs,
+        items,
+    } = module;
 
     // If there's a "use module" pragma, blame that.
-    if let Some(Dir { location, string, .. }) = dirs.into_iter().find(|dir| dir.pragma() == "use module") {
+    if let Some(Dir {
+        location, string, ..
+    }) = dirs.into_iter().find(|dir| dir.pragma() == "use module")
+    {
         return Error::UnexpectedDirective(location, string);
     }
 
     // If there's an import or export, blame that.
     for item in items {
         match item {
-            ModItem::Import(import) => { return Error::ImportInScript(import); }
-            ModItem::Export(export) => { return Error::ExportInScript(export); }
-            _ => { }
+            ModItem::Import(import) => {
+                return Error::ImportInScript(import);
+            }
+            ModItem::Export(export) => {
+                return Error::ExportInScript(export);
+            }
+            _ => {}
         }
     }
 
@@ -104,7 +118,9 @@ impl Program {
     pub fn script(self) -> Result<Script> {
         match self {
             Program::Ambiguous(_, script) => Ok(script),
-            Program::Module(module) => { return Err(unexpected_module(module)); }
+            Program::Module(module) => {
+                return Err(unexpected_module(module));
+            }
         }
     }
 
@@ -117,7 +133,9 @@ impl Program {
 
                 Ok(script)
             }
-            Program::Module(module) => { return Err(unexpected_module(module)); }
+            Program::Module(module) => {
+                return Err(unexpected_module(module));
+            }
         }
     }
 
@@ -128,21 +146,28 @@ impl Program {
                     check.perform(true)?;
                 }
 
-                let Script { location, dirs, items } = script;
+                let Script {
+                    location,
+                    dirs,
+                    items,
+                } = script;
 
                 Ok(Module {
                     location: location,
                     dirs: dirs,
-                    items: items.into_iter().map(|item| item.into_mod_item()).collect()
+                    items: items.into_iter().map(|item| item.into_mod_item()).collect(),
                 })
             }
-            Program::Module(module) => Ok(module)
+            Program::Module(module) => Ok(module),
         }
     }
 }
 
 impl Parser {
-    pub fn from_chars<I>(i: I) -> Parser where I: Iterator<Item=char> {
+    pub fn from_chars<I>(i: I) -> Parser
+    where
+        I: Iterator<Item = char>,
+    {
         let lexer = Lexer::new(i);
         Parser::new(true, lexer)
     }
@@ -153,7 +178,7 @@ impl Parser {
             validate: validate,
             deferred: Vec::new(),
             lexer: lexer,
-            context: Context::new()
+            context: Context::new(),
         }
     }
 
@@ -171,11 +196,15 @@ impl Parser {
 
         if let TokenData::String(ref literal) = token1.value {
             if !self.peek()?.expression_continuation() {
-                return Ok(Some(span.end_with_auto_semi(self, Newline::Required, |semi| Dir {
-                    location: None,
-                    string: literal.clone(),
-                    semi: semi
-                })?));
+                return Ok(Some(span.end_with_auto_semi(
+                    self,
+                    Newline::Required,
+                    |semi| Dir {
+                        location: None,
+                        string: literal.clone(),
+                        semi: semi,
+                    },
+                )?));
             }
         }
 
@@ -195,7 +224,7 @@ impl Parser {
             Ok(Module {
                 location: None,
                 dirs: this.body_directives()?,
-                items: this.module_items()?
+                items: this.module_items()?,
             })
         })
     }
@@ -208,17 +237,20 @@ impl Parser {
             match this.program_items()? {
                 ProgramItems::Script(items) => {
                     let checks = this.take_deferred();
-                    Ok(Program::Ambiguous(checks, Script {
-                        location: None,
-                        dirs: dirs,
-                        items: items
-                    }))
+                    Ok(Program::Ambiguous(
+                        checks,
+                        Script {
+                            location: None,
+                            dirs: dirs,
+                            items: items,
+                        },
+                    ))
                 }
                 ProgramItems::Module(items) => Ok(Program::Module(Module {
                     location: None,
                     dirs: dirs,
-                    items: items
-                }))
+                    items: items,
+                })),
             }
         })
     }
@@ -235,7 +267,7 @@ impl Parser {
             Ok(Script {
                 location: None,
                 dirs: this.body_directives()?,
-                items: this.statement_list()?
+                items: this.statement_list()?,
             })
         })
     }
@@ -279,13 +311,14 @@ impl Parser {
         loop {
             match self.peek()?.value {
                 TokenData::EOF => break,
-                TokenData::Reserved(Reserved::Import)
-              | TokenData::Reserved(Reserved::Export) => {
+                TokenData::Reserved(Reserved::Import) | TokenData::Reserved(Reserved::Export) => {
                     self.force_deferred_module_validation()?;
-                    let items = self.more_module_items(stmts.into_iter().map(|stmt| stmt.into_mod_item()).collect())?;
+                    let items = self.more_module_items(
+                        stmts.into_iter().map(|stmt| stmt.into_mod_item()).collect(),
+                    )?;
                     return Ok(ProgramItems::Module(items));
                 }
-                _ => { }
+                _ => {}
             }
 
             stmts.push(self.stmt_list_item(true)?);
@@ -306,7 +339,7 @@ impl Parser {
                 TokenData::Reserved(Reserved::Import) => unimplemented!(),
                 // ES6: export declaration
                 TokenData::Reserved(Reserved::Export) => unimplemented!(),
-                _ => { }
+                _ => {}
             }
 
             items.push(ModItem::StmtListItem(self.stmt_list_item(true)?));
@@ -325,9 +358,7 @@ impl Parser {
     }
 
     fn function_declaration(&mut self) -> Result<Decl> {
-        self.span(&mut |this| {
-            Ok(Decl::Fun(this.function(|this| this.id(true).map(Some))?))
-        })
+        self.span(&mut |this| Ok(Decl::Fun(this.function(|this| this.id(true).map(Some))?)))
     }
 
     fn formal_parameters(&mut self) -> Result<Params> {
@@ -345,7 +376,7 @@ impl Parser {
                             this.reread(TokenData::Ellipsis);
                             Ok(RestPatt {
                                 location: None,
-                                patt: this.pattern()?
+                                patt: this.pattern()?,
                             })
                         })?);
                         break;
@@ -362,7 +393,7 @@ impl Parser {
             Ok(Params {
                 location: None,
                 list: list,
-                rest: rest
+                rest: rest,
             })
         })
     }
@@ -377,12 +408,17 @@ impl Parser {
                             // TODO Should this use reread instead?
                             let _ = this.read();
                             Ok(Patt::Assign(None, id, Box::new(this.primary_expression()?)))
-                        },
-                        TokenData::Comma | TokenData::RParen => Ok(Patt::Simple(id)),
-                        _ => this.unexpected()
+                        }
+                        // @Question Do we need this check?
+                        // Either the array/object pattern can end or there is another pattern to check for
+                        // hence we check for Comma or RParen/RBrack/RBrace
+                        TokenData::Comma
+                        | TokenData::RParen
+                        | TokenData::RBrack
+                        | TokenData::RBrace => Ok(Patt::Simple(id)),
+                        _ => this.unexpected(),
                     }
                 })
-
             }
             _ => {
                 let patt = self.binding_pattern()?;
@@ -394,19 +430,17 @@ impl Parser {
     fn single_arrow_parameter(&mut self) -> Result<Params> {
         self.span(&mut |this| {
             let param = match this.peek()?.value {
-                TokenData::Identifier(_) =>  this.span(&mut |this| Ok(Patt::Simple(this.id(true)?))),
-                _ => this.unexpected()
+                TokenData::Identifier(_) => this.span(&mut |this| Ok(Patt::Simple(this.id(true)?))),
+                _ => this.unexpected(),
             }?;
 
             Ok(Params {
                 location: None,
                 list: vec![param],
-                rest: None
+                rest: None,
             })
         })
-
     }
-
 
     fn pattern(&mut self) -> Result<Patt<Id>> {
         match self.peek()?.value {
@@ -422,14 +456,67 @@ impl Parser {
     }
 
     fn binding_pattern(&mut self) -> Result<CompoundPatt<Id>> {
-        if !self.peek()?.first_binding() {
+        // FIXME We read and unread the token because we want to use self.unexpected(). Double
+        // mutable borrow of self doesn't work.
+        let token = self.read()?;
+        if !token.first_binding() {
             return self.unexpected();
         }
-        Err(Error::UnsupportedFeature("destructuring"))
+        self.lexer.unread_token(token);
+
+        match self.peek()?.value {
+            TokenData::LBrack => self.array_pattern(),
+            TokenData::LBrace => self.object_pattern(),
+            _ => self.unexpected(),
+        }
+    }
+
+    fn array_pattern(&mut self) -> Result<CompoundPatt<Id>> {
+        self.span(&mut |this| {
+            this.expect(TokenData::LBrack)?;
+            let mut list = Vec::new();
+            let mut rest = None;
+            loop {
+                match this.peek()?.value {
+                    TokenData::Comma => {
+                        this.read()?;
+                        match this.peek()?.value {
+                            TokenData::Comma => {
+                                list.push(None);
+                            }
+                            _ => (),
+                        }
+                    }
+                    TokenData::RBrack => {
+                        break;
+                    }
+                    TokenData::Ellipsis => {
+                        rest = Some(this.span(&mut |this| {
+                            this.reread(TokenData::Ellipsis);
+                            Ok(RestPatt {
+                                location: None,
+                                patt: this.pattern()?,
+                            })
+                        })?);
+                        break;
+                    }
+                    _ => {
+                        list.push(Some(this.parameter_pattern()?));
+                    }
+                }
+            }
+            this.expect(TokenData::RBrack)?;
+            Ok(CompoundPatt::Arr(None, list, rest.map(Box::new)))
+        })
+    }
+
+    fn object_pattern(&mut self) -> Result<CompoundPatt<Id>> {
+        self.unexpected()
     }
 
     fn strict_check<F>(&mut self, f: F) -> Result<()>
-        where F: FnOnce(&mut Self) -> Option<Check>
+    where
+        F: FnOnce(&mut Self) -> Option<Check>,
     {
         let strict = self.context.strict;
         if strict != Strict::No {
@@ -456,7 +543,8 @@ impl Parser {
     }
 
     fn function<F>(&mut self, get_id: F) -> Result<Fun>
-        where F: Fn(&mut Self) -> Result<Option<Id>>
+    where
+        F: Fn(&mut Self) -> Result<Option<Id>>,
     {
         self.span(&mut |this| {
             this.reread(TokenData::Reserved(Reserved::Function));
@@ -466,7 +554,7 @@ impl Parser {
                 (Some(id), true) => FunctionKind::Generator(id),
                 (Some(id), false) => FunctionKind::Named(id),
                 (None, true) => FunctionKind::AnonymousGenerator,
-                (None, false) => FunctionKind::Anonymous
+                (None, false) => FunctionKind::Anonymous,
             };
 
             let params = this.formal_parameters()?;
@@ -476,7 +564,7 @@ impl Parser {
                 kind: kind,
                 params: params,
                 body: body,
-                body_expr: None
+                body_expr: None,
             })
         })
     }
@@ -486,7 +574,7 @@ impl Parser {
             let kind = FunctionKind::Arrow;
             let params = match single_param {
                 true => this.single_arrow_parameter()?,
-                false => this.formal_parameters()?
+                false => this.formal_parameters()?,
             };
             this.expect(TokenData::Arrow)?;
             match this.peek()?.value {
@@ -497,7 +585,7 @@ impl Parser {
                         kind: kind,
                         params: params,
                         body: body,
-                        body_expr: None
+                        body_expr: None,
                     })
                 }
                 _ => {
@@ -507,7 +595,7 @@ impl Parser {
                         kind: kind,
                         params: params,
                         body: empty_script(),
-                        body_expr: Some(Box::new(expr))
+                        body_expr: Some(Box::new(expr)),
                     })
                 }
             }
@@ -524,7 +612,9 @@ impl Parser {
             if body.dirs.iter().any(|dir| dir.pragma() == "use strict") {
                 for param in params {
                     if let Patt::Compound(ref compound) = *param {
-                        return Some(Check::Strict(Error::CompoundParamWithUseStrict(compound.clone())));
+                        return Some(Check::Strict(Error::CompoundParamWithUseStrict(
+                            compound.clone(),
+                        )));
                     }
                 }
             }
@@ -543,54 +633,58 @@ impl Parser {
                 }
                 return self.function_declaration().map(StmtListItem::Decl);
             }
-            TokenData::LBrace                       => self.block().map(Stmt::Block),
-            TokenData::Reserved(Reserved::Var)      => self.var_statement(),
-            TokenData::Reserved(Reserved::Const)    => {
+            TokenData::LBrace => self.block().map(Stmt::Block),
+            TokenData::Reserved(Reserved::Var) => self.var_statement(),
+            TokenData::Reserved(Reserved::Const) => {
                 if !allow_decl {
                     return self.unexpected();
                 }
                 return self.const_declaration().map(StmtListItem::Decl);
             }
-            TokenData::Semi                         => self.empty_statement(),
-            TokenData::Reserved(Reserved::If)       => self.if_statement(),
+            TokenData::Semi => self.empty_statement(),
+            TokenData::Reserved(Reserved::If) => self.if_statement(),
             TokenData::Reserved(Reserved::Continue) => self.continue_statement(),
-            TokenData::Reserved(Reserved::Break)    => self.break_statement(),
-            TokenData::Reserved(Reserved::Return)   => self.return_statement(),
-            TokenData::Reserved(Reserved::With)     => self.with_statement(),
-            TokenData::Reserved(Reserved::Switch)   => self.switch_statement(),
-            TokenData::Reserved(Reserved::Throw)    => self.throw_statement(),
-            TokenData::Reserved(Reserved::Try)      => self.try_statement(),
-            TokenData::Reserved(Reserved::While)    => self.while_statement(),
-            TokenData::Reserved(Reserved::Do)       => self.do_statement(),
-            TokenData::Reserved(Reserved::For)      => self.for_statement(),
+            TokenData::Reserved(Reserved::Break) => self.break_statement(),
+            TokenData::Reserved(Reserved::Return) => self.return_statement(),
+            TokenData::Reserved(Reserved::With) => self.with_statement(),
+            TokenData::Reserved(Reserved::Switch) => self.switch_statement(),
+            TokenData::Reserved(Reserved::Throw) => self.throw_statement(),
+            TokenData::Reserved(Reserved::Try) => self.try_statement(),
+            TokenData::Reserved(Reserved::While) => self.while_statement(),
+            TokenData::Reserved(Reserved::Do) => self.do_statement(),
+            TokenData::Reserved(Reserved::For) => self.for_statement(),
             TokenData::Reserved(Reserved::Debugger) => self.debugger_statement(),
-            TokenData::Identifier(_)                => {
+            TokenData::Identifier(_) => {
                 let token = self.lexer.reread_token();
                 match self.peek_op()?.value {
                     TokenData::Colon => {
                         let id = self.new_id_from_token(false, token)?;
                         self.labelled_statement(id)
-                    },
-                    TokenData::Identifier(_) | TokenData::LBrace | TokenData::LBrack if token.value == TokenData::Identifier(Name::Atom(Atom::Let)) => {
+                    }
+                    TokenData::Identifier(_) | TokenData::LBrace | TokenData::LBrack
+                        if token.value == TokenData::Identifier(Name::Atom(Atom::Let)) =>
+                    {
                         if !allow_decl {
                             return self.unexpected();
                         }
-                        return self.let_declaration(token.location.start).map(StmtListItem::Decl);
-                    },
+                        return self
+                            .let_declaration(token.location.start)
+                            .map(StmtListItem::Decl);
+                    }
                     _ => {
                         self.lexer.unread_token(token);
                         self.expression_statement()
                     }
                 }
             }
-            _  => self.expression_statement()
+            _ => self.expression_statement(),
         }).map(StmtListItem::Stmt)
     }
 
     fn statement(&mut self) -> Result<Stmt> {
         self.stmt_list_item(false).map(|item| match item {
             StmtListItem::Stmt(stmt) => stmt,
-            _ => unreachable!()
+            _ => unreachable!(),
         })
     }
 
@@ -625,7 +719,7 @@ impl Parser {
             this.expect(TokenData::RBrace)?;
             Ok(Block {
                 location: None,
-                items: items
+                items: items,
             })
         })
     }
@@ -647,20 +741,25 @@ impl Parser {
         let span = self.start();
         self.reread(TokenData::Reserved(Reserved::Const));
         let dtors = self.comma_separated(Self::const_declarator)?;
-        span.end_with_auto_semi(self, Newline::Required, |semi| Decl::Const(None, dtors, semi))
+        span.end_with_auto_semi(self, Newline::Required, |semi| {
+            Decl::Const(None, dtors, semi)
+        })
     }
 
     fn new_id_from_token(&mut self, binding: bool, token: Token) -> Result<Id> {
         match token.value {
             TokenData::Identifier(name) => self.new_id(binding, name, token.location),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
     fn new_id(&mut self, binding: bool, name: Name, location: Span) -> Result<Id> {
         self.strict_check(|_| {
             if binding && name.is_illegal_strict_binding() {
-                return Some(Check::Strict(Error::IllegalStrictBinding(location, name.atom().unwrap())));
+                return Some(Check::Strict(Error::IllegalStrictBinding(
+                    location,
+                    name.atom().unwrap(),
+                )));
             }
             let is_reserved = name.is_strict_reserved();
             if is_reserved != TriState::No {
@@ -679,14 +778,18 @@ impl Parser {
     }
 
     fn id(&mut self, binding: bool) -> Result<Id> {
-        let Token { location, newline, value: data } = self.read()?;
+        let Token {
+            location,
+            newline,
+            value: data,
+        } = self.read()?;
         match data {
             TokenData::Identifier(name) => self.new_id(binding, name, location),
             _ => Err(Error::UnexpectedToken(Token {
                 location: location,
                 newline: newline,
-                value: data
-            }))
+                value: data,
+            })),
         }
     }
 
@@ -702,23 +805,21 @@ impl Parser {
     }
 
     fn declarator(&mut self) -> Result<Dtor> {
-        self.span(&mut |this| {
-            match this.peek()?.value {
-                TokenData::Identifier(_) => {
-                    let id = this.id(true)?;
-                    let init = if this.matches(TokenData::Assign)? {
-                        Some(this.assignment_expression()?)
-                    } else {
-                        None
-                    };
-                    Ok(Dtor::Simple(None, id, init))
-                }
-                _ => {
-                    let lhs = this.binding_pattern()?;
-                    this.expect(TokenData::Assign)?;
-                    let rhs = this.assignment_expression()?;
-                    Ok(Dtor::Compound(None, lhs, rhs))
-                }
+        self.span(&mut |this| match this.peek()?.value {
+            TokenData::Identifier(_) => {
+                let id = this.id(true)?;
+                let init = if this.matches(TokenData::Assign)? {
+                    Some(this.assignment_expression()?)
+                } else {
+                    None
+                };
+                Ok(Dtor::Simple(None, id, init))
+            }
+            _ => {
+                let lhs = this.binding_pattern()?;
+                this.expect(TokenData::Assign)?;
+                let rhs = this.assignment_expression()?;
+                Ok(Dtor::Compound(None, lhs, rhs))
             }
         })
     }
@@ -784,14 +885,14 @@ impl Parser {
             this.reread(TokenData::Reserved(Reserved::For));
             this.expect(TokenData::LParen)?;
             match this.peek()?.value {
-                TokenData::Reserved(Reserved::Var)           => this.for_var(),
+                TokenData::Reserved(Reserved::Var) => this.for_var(),
                 TokenData::Identifier(Name::Atom(Atom::Let)) => this.for_let(),
-                TokenData::Reserved(Reserved::Const)         => this.for_const(),
-                TokenData::Semi                              => {
+                TokenData::Reserved(Reserved::Const) => this.for_const(),
+                TokenData::Semi => {
                     this.reread(TokenData::Semi);
                     this.more_for(None)
                 }
-                _                                            => this.for_expr()
+                _ => this.for_expr(),
             }
         })
     }
@@ -812,39 +913,49 @@ impl Parser {
                         match self.peek()?.value {
                             // 'for' '(' 'var' id '=' expr ','  . ==> C-style
                             // 'for' '(' 'var' id '=' expr ';'  . ==> C-style
-                            TokenData::Comma
-                          | TokenData::Semi => {
-                                self.more_for_head(&var_location, Dtor::from_simple_init(id, rhs), ForHead::Var)
-                            }
+                            TokenData::Comma | TokenData::Semi => self.more_for_head(
+                                &var_location,
+                                Dtor::from_simple_init(id, rhs),
+                                ForHead::Var,
+                            ),
                             // 'for' '(' 'var' id '=' expr 'in' . ==> legacy enumeration
                             TokenData::Reserved(Reserved::In) => {
                                 self.reread(TokenData::Reserved(Reserved::In));
-                                let head = Box::new(ForInHead::VarInit(span(&var_location, &rhs), id, rhs));
+                                let head = Box::new(ForInHead::VarInit(
+                                    span(&var_location, &rhs),
+                                    id,
+                                    rhs,
+                                ));
                                 self.more_for_in(head)
                             }
-                            _ => self.unexpected()
+                            _ => self.unexpected(),
                         }
                     }
                     // 'for' '(' 'var' patt '=' . ==> C-style
                     Patt::Compound(patt) => {
                         let rhs = self.allow_in(false, |this| this.assignment_expression())?;
-                        self.more_for_head(&var_location, Dtor::from_compound_init(patt, rhs), ForHead::Var)
+                        self.more_for_head(
+                            &var_location,
+                            Dtor::from_compound_init(patt, rhs),
+                            ForHead::Var,
+                        )
                     }
                     Patt::Assign(_, _, _) => {
-                        // TODO Probably there is illegal
+                        // TODO Probably this is illegal
                         unimplemented!("for loop with assign pattern")
                     }
                 }
             }
-            TokenData::Comma
-          | TokenData::Semi => {
+            TokenData::Comma | TokenData::Semi => {
                 // 'for' '(' 'var' id   ',' . ==> C-style
                 // 'for' '(' 'var' id   ';' . ==> C-style
                 // 'for' '(' 'var' patt ',' . ==> syntax error
                 // 'for' '(' 'var' patt ';' . ==> syntax error
                 let dtor = match Dtor::from_init_opt(lhs, None) {
                     Ok(dtor) => dtor,
-                    Err(_) => { return self.unexpected(); }
+                    Err(_) => {
+                        return self.unexpected();
+                    }
                 };
                 self.more_for_head(&var_location, dtor, ForHead::Var)
             }
@@ -862,7 +973,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Var(span(&var_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected()
+            _ => self.unexpected(),
         }
     }
 
@@ -884,15 +995,16 @@ impl Parser {
                 let rhs = self.allow_in(false, |this| this.assignment_expression())?;
                 self.more_for_head(&let_location, Dtor::from_init(lhs, rhs), ForHead::Let)
             }
-            TokenData::Comma
-          | TokenData::Semi => {
+            TokenData::Comma | TokenData::Semi => {
                 // 'for' '(' 'let' id   ',' . ==> C-style
                 // 'for' '(' 'let' id   ';' . ==> C-style
                 // 'for' '(' 'let' patt ',' . ==> error
                 // 'for' '(' 'let' patt ';' . ==> error
                 let dtor = match Dtor::from_init_opt(lhs, None) {
                     Ok(dtor) => dtor,
-                    Err(_) => { return self.unexpected(); }
+                    Err(_) => {
+                        return self.unexpected();
+                    }
                 };
                 self.more_for_head(&let_location, dtor, ForHead::Let)
             }
@@ -910,7 +1022,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Let(span(&let_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected()
+            _ => self.unexpected(),
         }
     }
 
@@ -949,7 +1061,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Const(span(&const_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected()
+            _ => self.unexpected(),
         }
     }
 
@@ -966,7 +1078,9 @@ impl Parser {
                 let lhs_location = *lhs.tracking_ref();
                 let lhs = match lhs.into_simple_or_compound_pattern() {
                     Ok(lhs) => lhs,
-                    Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
+                    Err(cover_err) => {
+                        return Err(Error::InvalidLHS(lhs_location, cover_err));
+                    }
                 };
                 let head = Box::new(ForInHead::Patt(lhs));
                 self.more_for_in(head)
@@ -976,22 +1090,23 @@ impl Parser {
                 let lhs_location = *lhs.tracking_ref();
                 let lhs = match lhs.into_simple_or_compound_pattern() {
                     Ok(lhs) => lhs,
-                    Err(cover_err) => { return Err(Error::InvalidLHS(lhs_location, cover_err)); }
+                    Err(cover_err) => {
+                        return Err(Error::InvalidLHS(lhs_location, cover_err));
+                    }
                 };
                 let head = Box::new(ForOfHead::Patt(lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected()
+            _ => self.unexpected(),
         }
     }
 
     // 'for' '(' dtor .
     fn more_for_head<F>(&mut self, start: &Option<Span>, dtor: Dtor, op: F) -> Result<Stmt>
-      where F: FnOnce(Option<Span>, Vec<Dtor>) -> ForHead
+    where
+        F: FnOnce(Option<Span>, Vec<Dtor>) -> ForHead,
     {
-        let dtors = self.allow_in(false, |this| {
-            this.more_comma(dtor, Self::declarator)
-        })?;
+        let dtors = self.allow_in(false, |this| this.more_comma(dtor, Self::declarator))?;
         let semi_location = Some(self.expect(TokenData::Semi)?.location);
         let head = Box::new(op(span(start, &semi_location), dtors));
         self.more_for(Some(head))
@@ -1038,14 +1153,16 @@ impl Parser {
     }
 
     fn comma_separated<T, F>(&mut self, f: F) -> Result<Vec<T>>
-        where F: Fn(&mut Self) -> Result<T>
+    where
+        F: Fn(&mut Self) -> Result<T>,
     {
         let first = f(self)?;
         self.more_comma(first, f)
     }
 
     fn more_comma<T, F>(&mut self, first: T, f: F) -> Result<Vec<T>>
-        where F: Fn(&mut Self) -> Result<T>
+    where
+        F: Fn(&mut Self) -> Result<T>,
     {
         let mut items = vec![first];
         while self.matches(TokenData::Comma)? {
@@ -1071,7 +1188,9 @@ impl Parser {
         let mut found_default = false;
         loop {
             match self.peek()?.value {
-                TokenData::Reserved(Reserved::Case) => { cases.push(self.case()?); }
+                TokenData::Reserved(Reserved::Case) => {
+                    cases.push(self.case()?);
+                }
                 TokenData::Reserved(Reserved::Default) => {
                     if found_default {
                         let token = self.reread(TokenData::Reserved(Reserved::Default));
@@ -1080,7 +1199,9 @@ impl Parser {
                     found_default = true;
                     cases.push(self.default()?);
                 }
-                _ => { break; }
+                _ => {
+                    break;
+                }
             }
         }
         self.expect(TokenData::RBrace)?;
@@ -1093,7 +1214,11 @@ impl Parser {
             let test = this.allow_in(true, |this| this.expression())?;
             this.expect(TokenData::Colon)?;
             let body = this.statement_list()?;
-            Ok(Case { location: None, test: Some(test), body: body })
+            Ok(Case {
+                location: None,
+                test: Some(test),
+                body: body,
+            })
         })
     }
 
@@ -1102,7 +1227,11 @@ impl Parser {
             this.reread(TokenData::Reserved(Reserved::Default));
             this.expect(TokenData::Colon)?;
             let body = this.statement_list()?;
-            Ok(Case { location: None, test: None, body: body })
+            Ok(Case {
+                location: None,
+                test: None,
+                body: body,
+            })
         })
     }
 
@@ -1121,9 +1250,7 @@ impl Parser {
             }
             None
         };
-        span.end_with_auto_semi(self, Newline::Required, |semi| {
-            Stmt::Break(None, arg, semi)
-        })
+        span.end_with_auto_semi(self, Newline::Required, |semi| Stmt::Break(None, arg, semi))
     }
 
     fn continue_statement(&mut self) -> Result<Stmt> {
@@ -1132,9 +1259,13 @@ impl Parser {
         let arg = if self.has_arg_same_line()? {
             let id = self.id(false)?;
             match self.context.labels.get(&Rc::new(id.name.clone())) {
-                None                        => { return Err(Error::InvalidLabel(id)); }
-                Some(&LabelType::Statement) => { return Err(Error::InvalidLabelType(id)); }
-                _                           => { }
+                None => {
+                    return Err(Error::InvalidLabel(id));
+                }
+                Some(&LabelType::Statement) => {
+                    return Err(Error::InvalidLabelType(id));
+                }
+                _ => {}
             }
             Some(id)
         } else {
@@ -1143,9 +1274,7 @@ impl Parser {
             }
             None
         };
-        span.end_with_auto_semi(self, Newline::Required, |semi| {
-            Stmt::Cont(None, arg, semi)
-        })
+        span.end_with_auto_semi(self, Newline::Required, |semi| Stmt::Cont(None, arg, semi))
     }
 
     fn return_statement(&mut self) -> Result<Stmt> {
@@ -1169,9 +1298,7 @@ impl Parser {
     fn with_statement(&mut self) -> Result<Stmt> {
         self.span(&mut |this| {
             let token = this.reread(TokenData::Reserved(Reserved::With));
-            this.strict_check(|_| {
-                Some(Check::Strict(Error::StrictWith(token)))
-            })?;
+            this.strict_check(|_| Some(Check::Strict(Error::StrictWith(token))))?;
             let obj = this.paren_expression()?;
             let body = Box::new(this.statement()?);
             Ok(Stmt::With(None, obj, body))
@@ -1185,9 +1312,7 @@ impl Parser {
             return Err(Error::ThrowArgument(token));
         }
         let arg = self.allow_in(true, |this| this.expression())?;
-        span.end_with_auto_semi(self, Newline::Required, |semi| {
-            Stmt::Throw(None, arg, semi)
-        })
+        span.end_with_auto_semi(self, Newline::Required, |semi| Stmt::Throw(None, arg, semi))
     }
 
     fn try_statement(&mut self) -> Result<Stmt> {
@@ -1195,8 +1320,7 @@ impl Parser {
             this.reread(TokenData::Reserved(Reserved::Try));
             let body = this.block()?;
             match this.peek()?.value {
-                TokenData::Reserved(Reserved::Catch)
-              | TokenData::Reserved(Reserved::Finally) => { }
+                TokenData::Reserved(Reserved::Catch) | TokenData::Reserved(Reserved::Finally) => {}
                 _ => {
                     return Err(Error::OrphanTry(this.read()?));
                 }
@@ -1217,10 +1341,14 @@ impl Parser {
                     this.expect(TokenData::RParen)?;
 
                     let body = this.block()?;
-                    Ok(Catch { location: None, param: param, body: body })
+                    Ok(Catch {
+                        location: None,
+                        param: param,
+                        body: body,
+                    })
                 }).map(Some)
             }
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 
@@ -1230,7 +1358,7 @@ impl Parser {
                 self.reread(TokenData::Reserved(Reserved::Finally));
                 Some(self.block()?)
             }
-            _ => None
+            _ => None,
         })
     }
 
@@ -1249,7 +1377,7 @@ impl Parser {
         // println!("match arrow {}", match_arrow);
         match match_arrow {
             true => self.unexpected(),
-            false => Ok(result)
+            false => Ok(result),
         }
     }
 
@@ -1268,13 +1396,13 @@ impl Parser {
     fn primary_expression(&mut self) -> Result<Expr> {
         let posn = self.lexer.posn();
         let index = self.lexer.seek_index();
-            // println!("primary {}", index);
-            // println!("primary {:?}", self.peek()?);
+        // println!("primary {}", index);
+        // println!("primary {:?}", self.peek()?);
 
         let token = self.read()?;
         let location = token.location;
         Ok(match token.value {
-            TokenData::Identifier(name)          => {
+            TokenData::Identifier(name) => {
                 let match_arrow = self.matches_op(TokenData::Arrow)?;
                 if match_arrow {
                     self.lexer.seek(index, posn);
@@ -1282,16 +1410,20 @@ impl Parser {
                 } else {
                     Expr::Id(self.new_id(false, name, location)?)
                 }
-            },
-            TokenData::Reserved(Reserved::Null)  => Expr::Null(Some(location)),
-            TokenData::Reserved(Reserved::This)  => Expr::This(Some(location)),
-            TokenData::Reserved(Reserved::True)  => Expr::True(Some(location)),
+            }
+            TokenData::Reserved(Reserved::Null) => Expr::Null(Some(location)),
+            TokenData::Reserved(Reserved::This) => Expr::This(Some(location)),
+            TokenData::Reserved(Reserved::True) => Expr::True(Some(location)),
             TokenData::Reserved(Reserved::False) => Expr::False(Some(location)),
-            TokenData::Number(literal)           => Expr::Number(Some(location), literal),
-            TokenData::String(literal)           => Expr::String(Some(location), literal),
-            TokenData::RegExp(literal)           => Expr::RegExp(Some(location), literal),
-            TokenData::LBrack                    => { return self.array_literal(token); }
-            TokenData::LBrace                    => { return self.object_literal(token); }
+            TokenData::Number(literal) => Expr::Number(Some(location), literal),
+            TokenData::String(literal) => Expr::String(Some(location), literal),
+            TokenData::RegExp(literal) => Expr::RegExp(Some(location), literal),
+            TokenData::LBrack => {
+                return self.array_literal(token);
+            }
+            TokenData::LBrace => {
+                return self.object_literal(token);
+            }
             TokenData::Reserved(Reserved::Function) => {
                 self.lexer.unread_token(token);
                 return Ok(Expr::Fun(self.function(|this| this.id_opt(true))?));
@@ -1309,10 +1441,12 @@ impl Parser {
                         // println!("asdasd");
                         expr
                     }
-                }
+                };
             }
             // ES6: more cases
-            _ => { return Err(Error::UnexpectedToken(token)); }
+            _ => {
+                return Err(Error::UnexpectedToken(token));
+            }
         })
     }
 
@@ -1337,16 +1471,12 @@ impl Parser {
 
     fn expr_list_item(&mut self) -> Result<ExprListItem> {
         match self.peek()?.value {
-            TokenData::Ellipsis => {
-                self.span(&mut |this| {
-                    this.reread(TokenData::Ellipsis);
-                    let expr = this.assignment_expression()?;
-                    Ok(ExprListItem::Spread(None, expr))
-                })
-            }
-            _ => {
-                Ok(ExprListItem::Expr(self.assignment_expression()?))
-            }
+            TokenData::Ellipsis => self.span(&mut |this| {
+                this.reread(TokenData::Ellipsis);
+                let expr = this.assignment_expression()?;
+                Ok(ExprListItem::Spread(None, expr))
+            }),
+            _ => Ok(ExprListItem::Expr(self.assignment_expression()?)),
         }
     }
 
@@ -1378,18 +1508,25 @@ impl Parser {
             TokenData::Colon => {
                 self.skip()?;
                 let val = self.allow_in(true, |this| this.assignment_expression())?;
-                Prop::Regular(span(key.tracking_ref(), val.tracking_ref()), key, PropVal::Init(val))
+                Prop::Regular(
+                    span(key.tracking_ref(), val.tracking_ref()),
+                    key,
+                    PropVal::Init(val),
+                )
             }
             TokenData::LParen => {
                 let params = self.formal_parameters()?;
                 let body = self.function_body(&params.list)?;
-                Prop::Method(key, Fun {
-                    location: span(&None, body.tracking_ref()),
-                    kind: FunctionKind::Anonymous,
-                    params: params,
-                    body: body,
-                    body_expr: None
-                })
+                Prop::Method(
+                    key,
+                    Fun {
+                        location: span(&None, body.tracking_ref()),
+                        kind: FunctionKind::Anonymous,
+                        params: params,
+                        body: body,
+                        body_expr: None,
+                    },
+                )
             }
             TokenData::Comma | TokenData::RBrace => {
                 if let PropKey::Id(location, name) = key {
@@ -1398,7 +1535,9 @@ impl Parser {
                     return self.unexpected();
                 }
             }
-            _ => { return self.unexpected(); }
+            _ => {
+                return self.unexpected();
+            }
         })
     }
 
@@ -1420,7 +1559,7 @@ impl Parser {
     fn property_key(&mut self) -> Result<PropKey> {
         match self.property_key_opt()? {
             Some(key) => Ok(key),
-            None => self.unexpected()
+            None => self.unexpected(),
         }
     }
 
@@ -1434,7 +1573,11 @@ impl Parser {
                     let body = self.function_body(&vec![])?;
                     let val_location = span(&paren_location, &body);
                     let prop_location = span(&key, &body);
-                    return Ok(Prop::Regular(prop_location, key, PropVal::Get(val_location, body)));
+                    return Ok(Prop::Regular(
+                        prop_location,
+                        key,
+                        PropVal::Get(val_location, body),
+                    ));
                 }
                 let key_location = Some(first.location);
                 self.more_prop_init(PropKey::Id(key_location, "get".to_string()))
@@ -1447,7 +1590,11 @@ impl Parser {
                     let body = self.function_body(&[param.clone()])?;
                     let val_location = span(&paren_location, &body);
                     let prop_location = span(&key, &body);
-                    return Ok(Prop::Regular(prop_location, key, PropVal::Set(val_location, param, body)));
+                    return Ok(Prop::Regular(
+                        prop_location,
+                        key,
+                        PropVal::Set(val_location, param, body),
+                    ));
                 }
                 let key_location = Some(first.location);
                 self.more_prop_init(PropKey::Id(key_location, "set".to_string()))
@@ -1456,26 +1603,27 @@ impl Parser {
                 let key = self.property_key()?;
                 let params = self.formal_parameters()?;
                 let body = self.function_body(&params.list)?;
-                Ok(Prop::Method(key, Fun {
-                    location: span(&None, body.tracking_ref()),
-                    kind: FunctionKind::AnonymousGenerator,
-                    params: params,
-                    body: body,
-                    body_expr: None
-                }))
+                Ok(Prop::Method(
+                    key,
+                    Fun {
+                        location: span(&None, body.tracking_ref()),
+                        kind: FunctionKind::AnonymousGenerator,
+                        params: params,
+                        body: body,
+                        body_expr: None,
+                    },
+                ))
             }
-            TokenData::Reserved(_) => {
-                match self.peek()?.value {
-                    TokenData::Comma | TokenData::RBrace => {
-                        return Err(Error::UnexpectedToken(first));
-                    }
-                    _ => {
-                        self.lexer.unread_token(first);
-                        let key = self.property_key()?;
-                        self.more_prop_init(key)
-                    }
+            TokenData::Reserved(_) => match self.peek()?.value {
+                TokenData::Comma | TokenData::RBrace => {
+                    return Err(Error::UnexpectedToken(first));
                 }
-            }
+                _ => {
+                    self.lexer.unread_token(first);
+                    let key = self.property_key()?;
+                    self.more_prop_init(key)
+                }
+            },
             _ => {
                 self.lexer.unread_token(first);
                 let key = self.property_key()?;
@@ -1490,7 +1638,10 @@ impl Parser {
     fn member_base_expression(&mut self) -> Result<Expr> {
         if let Some(new) = self.matches_token(TokenData::Reserved(Reserved::New))? {
             self.expect(TokenData::Dot)?;
-            let target_location = Some(self.expect(TokenData::Identifier(Name::Atom(Atom::Target)))?.location);
+            let target_location = Some(
+                self.expect(TokenData::Identifier(Name::Atom(Atom::Target)))?
+                    .location,
+            );
             return Ok(Expr::NewTarget(span(&Some(new.location), &target_location)));
         }
         self.primary_expression()
@@ -1534,10 +1685,10 @@ impl Parser {
     //   Arguments
     fn suffix_opt(&mut self) -> Result<Option<Suffix>> {
         match self.peek_op()?.value {
-            TokenData::Dot    => self.deref_dot().map(|deref| Some(Suffix::Deref(deref))),
+            TokenData::Dot => self.deref_dot().map(|deref| Some(Suffix::Deref(deref))),
             TokenData::LBrack => self.deref_brack().map(|deref| Some(Suffix::Deref(deref))),
             TokenData::LParen => self.arguments().map(|args| Some(Suffix::Arguments(args))),
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 
@@ -1555,7 +1706,10 @@ impl Parser {
                 }
             }
             let end = this.expect(TokenData::RParen)?;
-            Ok(Arguments { args: args, end: end })
+            Ok(Arguments {
+                args: args,
+                end: end,
+            })
         })
     }
 
@@ -1565,8 +1719,8 @@ impl Parser {
     fn deref_opt(&mut self) -> Result<Option<Deref>> {
         match self.peek_op()?.value {
             TokenData::LBrack => self.deref_brack().map(Some),
-            TokenData::Dot    => self.deref_dot().map(Some),
-            _ => Ok(None)
+            TokenData::Dot => self.deref_dot().map(Some),
+            _ => Ok(None),
         }
     }
 
@@ -1584,8 +1738,10 @@ impl Parser {
             value: match token.value {
                 TokenData::Identifier(name) => name.into_string(),
                 TokenData::Reserved(word) => word.into_string(),
-                _ => { return Err(Error::UnexpectedToken(token)); }
-            }
+                _ => {
+                    return Err(Error::UnexpectedToken(token));
+                }
+            },
         })
     }
 
@@ -1612,7 +1768,10 @@ impl Parser {
         }
         if news.len() > 0 {
             if self.matches_op(TokenData::Dot)? {
-                let target_location = Some(self.expect(TokenData::Identifier(Name::Atom(Atom::Target)))?.location);
+                let target_location = Some(
+                    self.expect(TokenData::Identifier(Name::Atom(Atom::Target)))?
+                        .location,
+                );
                 let new = news.pop();
                 let new_location = new.map(|new| new.location);
                 let new_target = Expr::NewTarget(span(&new_location, &target_location));
@@ -1640,32 +1799,32 @@ impl Parser {
         if let Some(postfix) = self.match_postfix_operator_opt()? {
             let arg_location = *arg.tracking_ref();
             arg = match arg.into_assignable().map(Box::new) {
-                Ok(target) => {
-                    match postfix {
-                        Postfix::Inc(location) => Expr::PostInc(Some(location), target),
-                        Postfix::Dec(location) => Expr::PostDec(Some(location), target)
-                    }
+                Ok(target) => match postfix {
+                    Postfix::Inc(location) => Expr::PostInc(Some(location), target),
+                    Postfix::Dec(location) => Expr::PostDec(Some(location), target),
+                },
+                Err(cover_err) => {
+                    return Err(Error::InvalidLHS(arg_location, cover_err));
                 }
-                Err(cover_err) => { return Err(Error::InvalidLHS(arg_location, cover_err)); }
             };
         }
         for prefix in prefixes.into_iter().rev() {
             match prefix {
-                Prefix::Unop(op)      => {
+                Prefix::Unop(op) => {
                     let location = span(&op, &arg);
                     arg = Expr::Unop(location, op, Box::new(arg));
                 }
                 _ => {
                     let arg_location = *arg.tracking_ref();
                     arg = match arg.into_assignable().map(Box::new) {
-                        Ok(target) => {
-                            match prefix {
-                                Prefix::Inc(location) => Expr::PreInc(Some(location), target),
-                                Prefix::Dec(location) => Expr::PreDec(Some(location), target),
-                                Prefix::Unop(_) => unreachable!()
-                            }
+                        Ok(target) => match prefix {
+                            Prefix::Inc(location) => Expr::PreInc(Some(location), target),
+                            Prefix::Dec(location) => Expr::PreDec(Some(location), target),
+                            Prefix::Unop(_) => unreachable!(),
+                        },
+                        Err(cover_err) => {
+                            return Err(Error::InvalidLHS(arg_location, cover_err));
                         }
-                        Err(cover_err) => { return Err(Error::InvalidLHS(arg_location, cover_err)); }
                     };
                 }
             }
@@ -1701,15 +1860,21 @@ impl Parser {
         let token = self.read()?;
         let tag = match token.value {
             TokenData::Reserved(Reserved::Delete) => UnopTag::Delete,
-            TokenData::Reserved(Reserved::Void)   => UnopTag::Void,
+            TokenData::Reserved(Reserved::Void) => UnopTag::Void,
             TokenData::Reserved(Reserved::Typeof) => UnopTag::Typeof,
-            TokenData::Plus                       => UnopTag::Plus,
-            TokenData::Minus                      => UnopTag::Minus,
-            TokenData::Tilde                      => UnopTag::BitNot,
-            TokenData::Bang                       => UnopTag::Not,
-            _ => { self.lexer.unread_token(token); return Ok(None); }
+            TokenData::Plus => UnopTag::Plus,
+            TokenData::Minus => UnopTag::Minus,
+            TokenData::Tilde => UnopTag::BitNot,
+            TokenData::Bang => UnopTag::Not,
+            _ => {
+                self.lexer.unread_token(token);
+                return Ok(None);
+            }
         };
-        Ok(Some(Op { location: Some(token.location), tag: tag }))
+        Ok(Some(Op {
+            location: Some(token.location),
+            tag: tag,
+        }))
     }
 
     // PostfixOperator ::=
@@ -1719,9 +1884,13 @@ impl Parser {
         let next = self.read_op()?;
         if !next.newline {
             match next.value {
-                TokenData::Inc => { return Ok(Some(Postfix::Inc(next.location))); }
-                TokenData::Dec => { return Ok(Some(Postfix::Dec(next.location))); }
-                _ => { }
+                TokenData::Inc => {
+                    return Ok(Some(Postfix::Inc(next.location)));
+                }
+                TokenData::Dec => {
+                    return Ok(Some(Postfix::Dec(next.location)));
+                }
+                _ => {}
             }
         }
         self.lexer.unread_token(next);
@@ -1742,7 +1911,12 @@ impl Parser {
             self.expect(TokenData::Colon)?;
             let alt = self.assignment_expression()?;
             let location = span(&cons, &alt);
-            return Ok(Expr::Cond(location, Box::new(left), Box::new(cons), Box::new(alt)));
+            return Ok(Expr::Cond(
+                location,
+                Box::new(left),
+                Box::new(cons),
+                Box::new(alt),
+            ));
         }
         Ok(left)
     }
@@ -1761,7 +1935,9 @@ impl Parser {
         if token.value == TokenData::Assign {
             let left = match left.into_simple_or_compound_pattern() {
                 Ok(left) => left,
-                Err(cover_err) => { return Err(Error::InvalidLHS(left_location, cover_err)); }
+                Err(cover_err) => {
+                    return Err(Error::InvalidLHS(left_location, cover_err));
+                }
             };
             let right = self.assignment_expression()?;
             let location = span(&left, &right);
@@ -1769,11 +1945,18 @@ impl Parser {
         } else if let Some(op) = token.to_assop() {
             let left = match left.into_assignable() {
                 Ok(left) => left,
-                Err(cover_err) => { return Err(Error::InvalidLHS(left_location, cover_err)); }
+                Err(cover_err) => {
+                    return Err(Error::InvalidLHS(left_location, cover_err));
+                }
             };
             let right = self.assignment_expression()?;
             let location = span(&left, &right);
-            return Ok(Expr::BinAssign(location, op, Box::new(left), Box::new(right)));
+            return Ok(Expr::BinAssign(
+                location,
+                op,
+                Box::new(left),
+                Box::new(right),
+            ));
         }
         self.lexer.unread_token(token);
         Ok(left)
@@ -1792,9 +1975,10 @@ impl Parser {
 
     fn match_infix(&mut self) -> Result<Option<Infix>> {
         let token = self.read_op()?;
-        let result = token.to_binop(self.context.allow_in).map_or_else(|| {
-            token.to_logop().map(Infix::Logop)
-        }, |op| Some(Infix::Binop(op)));
+        let result = token.to_binop(self.context.allow_in).map_or_else(
+            || token.to_logop().map(Infix::Logop),
+            |op| Some(Infix::Binop(op)),
+        );
         if result.is_none() {
             self.lexer.unread_token(token);
         }
