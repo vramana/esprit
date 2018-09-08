@@ -117,7 +117,7 @@ impl IntoAssignProp for Prop {
                 PropPatt::Regular(location, key, expr.into_simple_or_compound_pattern()?)
             }
             Prop::Shorthand(id) => {
-                PropPatt::Shorthand(id)
+                PropPatt::Shorthand(None, id, None)
             }
             _ => { return Err(cover::Error::InvalidPropPatt(location)); }
         })

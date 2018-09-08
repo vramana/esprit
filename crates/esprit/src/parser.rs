@@ -407,6 +407,10 @@ impl Parser {
                         TokenData::Assign => {
                             // TODO Should this use reread instead?
                             let _ = this.read();
+                            // FIXME Allow expression instead of primary expression because if we do
+                            // this.expression()? we end up over parsing by treating property seperator
+                            // commas as part of expression. We likely need a different method to parse
+                            // these kinds of expression
                             Ok(Patt::Assign(None, id, Box::new(this.primary_expression()?)))
                         }
                         // @Question Do we need this check?
@@ -517,7 +521,7 @@ impl Parser {
                 TokenData::Identifier(_) => match this.peek()?.value {
                     TokenData::Colon => {
                         if let TokenData::Identifier(Name::String(s)) = token.value {
-                            let key = PropKey::Id(None, s);
+                            let key = PropKey::Id(Some(token.location), s);
                             this.expect(TokenData::Colon)?;
                             let value = this.parameter_pattern()?;
                             Ok(PropPatt::Regular(None, key, value))
@@ -525,10 +529,22 @@ impl Parser {
                             this.unexpected()
                         }
                     }
+                    TokenData::Assign => {
+                        this.lexer.unread_token(token);
+                        let id = this.id(true)?;
+                        let id2 = id.clone();
+                        this.expect(TokenData::Assign)?;
+                        // FIXME Allow expression instead of primary expression because if we do
+                        // this.expression()? we end up over parsing by treating property seperator
+                        // commas as part of expression. We likely need a different method to parse
+                        // these kinds of expression
+                        let value = Box::new(this.primary_expression()?);
+                        Ok(PropPatt::Shorthand(None, id, Some(Patt::Assign(None, id2, value))))
+                    }
                     TokenData::Comma | TokenData::RBrace => {
                         this.lexer.unread_token(token);
                         let id = this.id(true)?;
-                        Ok(PropPatt::Shorthand(id))
+                        Ok(PropPatt::Shorthand(None, id, None))
                     }
                     _ => this.unexpected(),
                 },

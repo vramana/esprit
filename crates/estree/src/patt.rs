@@ -1,12 +1,12 @@
-use easter::patt::{Patt, PropPatt, RestPatt, CompoundPatt};
 use easter::id::{Id, IdExt};
+use easter::patt::{CompoundPatt, Patt, PropPatt, RestPatt};
 use unjson::ty::Object;
 use unjson::{ExtractField, Unjson};
 
+use error::Error;
 use id::IntoId;
 use obj::IntoObj;
-use result::{Result, Map};
-use error::Error;
+use result::{Map, Result};
 use tag::{Tag, TagOf};
 
 use node::ExtractNode;
@@ -26,11 +26,9 @@ impl IntoPatt for Object {
             }
             Tag::ArrayPattern => {
                 let list = self.extract_array("elements")?;
-                let mut objs = list.map(|v| {
-                    match v.is_null() {
-                        true => Ok(None),
-                        false => Ok(Some(v.into_object().map_err(Error::Json)?))
-                    }
+                let mut objs = list.map(|v| match v.is_null() {
+                    true => Ok(None),
+                    false => Ok(Some(v.into_object().map_err(Error::Json)?)),
                 })?;
 
                 let mut rest = None;
@@ -38,18 +36,16 @@ impl IntoPatt for Object {
                     if last.tag()? == Tag::RestElement {
                         rest = Some(RestPatt {
                             location: None,
-                            patt: last.extract_patt("argument")?
+                            patt: last.extract_patt("argument")?,
                         });
                     } else {
                         objs.push(Some(last));
                     }
                 }
 
-                let patt_elements = objs.map(|e| {
-                    match e {
-                        None => Ok(None),
-                        Some(o) => Ok(Some(o.into_patt()?))
-                    }
+                let patt_elements = objs.map(|e| match e {
+                    None => Ok(None),
+                    Some(o) => Ok(Some(o.into_patt()?)),
                 })?;
 
                 let rest = rest.map(Box::new);
@@ -72,14 +68,23 @@ impl IntoPatt for Object {
                 //     }
                 // }
 
-                let patt_elements = objs.map(|mut e| {
-                    match e.extract_bool("shorthand")? {
-                        true => Ok(PropPatt::Shorthand(e.extract_id("key")?)),
-                        false => {
-                            let prop_key = e.extract_object("key")?.into_prop_key()?;
-                            let prop_value = e.extract_object("value")?.into_patt()?;
-                            Ok(PropPatt::Regular(None, prop_key, prop_value))
+                let patt_elements = objs.map(|mut e| match e.extract_bool("shorthand")? {
+                    true => {
+                        let prop_key = e.extract_id("key")?;
+                        let value_obj = e.extract_object("value")?;
+                        match value_obj.tag()? {
+                            Tag::AssignmentPattern => Ok(PropPatt::Shorthand(
+                                None,
+                                prop_key,
+                                Some(value_obj.into_patt()?),
+                            )),
+                            _ => Ok(PropPatt::Shorthand(None, prop_key, None)),
                         }
+                    }
+                    false => {
+                        let prop_key = e.extract_object("key")?.into_prop_key()?;
+                        let prop_value = e.extract_object("value")?.into_patt()?;
+                        Ok(PropPatt::Regular(None, prop_key, prop_value))
                     }
                 })?;
 
@@ -87,7 +92,7 @@ impl IntoPatt for Object {
 
                 Ok(Patt::Compound(CompoundPatt::Obj(None, patt_elements)))
             }
-            _ => self.into_id().map(|id| id.into_patt())
+            _ => self.into_id().map(|id| id.into_patt()),
         }
     }
 }

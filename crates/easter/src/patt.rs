@@ -20,7 +20,11 @@ pub enum CompoundPatt<T> {
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum PropPatt<T> {
     Regular(Option<Span>, PropKey, Patt<T>),
-    Shorthand(Id)
+    // @Question Is there a more appropriate way to handle this case
+    // { a = 0 }? The problem it's an assign pattern inside object pattern.
+    // The identifier is same for both object pattern and assignment pattern
+    // Currently we have to clone the id.
+    Shorthand(Option<Span>, Id, Option<Patt<Id>>)
 }
 
 #[derive(Debug, PartialEq, Clone, Untrack)]
