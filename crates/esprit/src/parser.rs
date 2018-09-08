@@ -4,7 +4,7 @@ use easter::fun::FunctionKind;
 use easter::fun::{Fun, Params};
 use easter::id::{Id, IdExt};
 use easter::obj::{DotKey, Prop, PropKey, PropVal};
-use easter::patt::{PropPatt, CompoundPatt, Patt, RestPatt};
+use easter::patt::{CompoundPatt, Patt, PropPatt, RestPatt};
 use easter::punc::{Op, ToOp, Unop, UnopTag};
 use easter::stmt::empty_script;
 use easter::stmt::{
@@ -514,26 +514,24 @@ impl Parser {
         self.span(&mut |this| {
             let token = this.read()?;
             match token.value {
-                TokenData::Identifier(_) => {
-                    match this.peek()?.value {
-                        TokenData::Colon => {
-                            if let TokenData::Identifier(Name::String(s)) = token.value {
-                                let key = PropKey::Id(None, s);
-                                this.expect(TokenData::Colon)?;
-                                let value = this.parameter_pattern()?;
-                                Ok(PropPatt::Regular(None, key, value))
-                            } else {
-                                this.unexpected()
-                            }
+                TokenData::Identifier(_) => match this.peek()?.value {
+                    TokenData::Colon => {
+                        if let TokenData::Identifier(Name::String(s)) = token.value {
+                            let key = PropKey::Id(None, s);
+                            this.expect(TokenData::Colon)?;
+                            let value = this.parameter_pattern()?;
+                            Ok(PropPatt::Regular(None, key, value))
+                        } else {
+                            this.unexpected()
                         }
-                        TokenData::Comma => {
-                            this.lexer.unread_token(token);
-                            let id = this.id(true)?;
-                            Ok(PropPatt::Shorthand(id))
-                        }
-                        _ => this.unexpected()
                     }
-                }
+                    TokenData::Comma | TokenData::RBrace => {
+                        this.lexer.unread_token(token);
+                        let id = this.id(true)?;
+                        Ok(PropPatt::Shorthand(id))
+                    }
+                    _ => this.unexpected(),
+                },
                 _ => {
                     this.lexer.unread_token(token);
                     let key = this.property_key()?;
@@ -543,7 +541,7 @@ impl Parser {
                             let value = this.parameter_pattern()?;
                             Ok(PropPatt::Regular(None, key, value))
                         }
-                        _ => this.unexpected()
+                        _ => this.unexpected(),
                     }
                 }
             }
@@ -1502,14 +1500,10 @@ impl Parser {
 
                 return match self.paren_expression() {
                     Err(_) => {
-                        // println!("parse arrow");
                         self.lexer.seek(index, posn);
                         self.arrow_function(false).map(Expr::Fun)
                     }
-                    expr => {
-                        // println!("asdasd");
-                        expr
-                    }
+                    expr => expr,
                 };
             }
             // ES6: more cases
