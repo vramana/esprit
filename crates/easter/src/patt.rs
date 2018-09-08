@@ -13,6 +13,7 @@ pub struct RestPatt<T> {
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum CompoundPatt<T> {
     Arr(Option<Span>, Vec<Option<Patt<T>>>, Option<Box<RestPatt<T>>>),
+    // TODO add Rest param to support object spread/rest
     Obj(Option<Span>, Vec<PropPatt<T>>)
 }
 

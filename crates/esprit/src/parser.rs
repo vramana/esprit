@@ -4,7 +4,7 @@ use easter::fun::FunctionKind;
 use easter::fun::{Fun, Params};
 use easter::id::{Id, IdExt};
 use easter::obj::{DotKey, Prop, PropKey, PropVal};
-use easter::patt::{CompoundPatt, Patt, RestPatt};
+use easter::patt::{PropPatt, CompoundPatt, Patt, RestPatt};
 use easter::punc::{Op, ToOp, Unop, UnopTag};
 use easter::stmt::empty_script;
 use easter::stmt::{
@@ -510,8 +510,77 @@ impl Parser {
         })
     }
 
+    fn binding_property(&mut self) -> Result<PropPatt<Id>> {
+        self.span(&mut |this| {
+            let token = this.read()?;
+            match token.value {
+                TokenData::Identifier(_) => {
+                    match this.peek()?.value {
+                        TokenData::Colon => {
+                            if let TokenData::Identifier(Name::String(s)) = token.value {
+                                let key = PropKey::Id(None, s);
+                                this.expect(TokenData::Colon)?;
+                                let value = this.parameter_pattern()?;
+                                Ok(PropPatt::Regular(None, key, value))
+                            } else {
+                                this.unexpected()
+                            }
+                        }
+                        TokenData::Comma => {
+                            this.lexer.unread_token(token);
+                            let id = this.id(true)?;
+                            Ok(PropPatt::Shorthand(id))
+                        }
+                        _ => this.unexpected()
+                    }
+                }
+                _ => {
+                    this.lexer.unread_token(token);
+                    let key = this.property_key()?;
+                    match this.peek()?.value {
+                        TokenData::Colon => {
+                            this.expect(TokenData::Colon)?;
+                            let value = this.parameter_pattern()?;
+                            Ok(PropPatt::Regular(None, key, value))
+                        }
+                        _ => this.unexpected()
+                    }
+                }
+            }
+        })
+    }
+
     fn object_pattern(&mut self) -> Result<CompoundPatt<Id>> {
-        self.unexpected()
+        self.span(&mut |this| {
+            this.expect(TokenData::LBrace)?;
+            let mut list = Vec::new();
+            // let mut rest = None;
+            loop {
+                match this.peek()?.value {
+                    TokenData::Comma => {
+                        this.read()?;
+                    }
+                    TokenData::RBrace => {
+                        break;
+                    }
+                    // TokenData::Ellipsis => {
+                    //     rest = Some(this.span(&mut |this| {
+                    //         this.reread(TokenData::Ellipsis);
+                    //         Ok(RestPatt {
+                    //             location: None,
+                    //             patt: this.pattern()?,
+                    //         })
+                    //     })?);
+                    //     break;
+                    // }
+                    _ => {
+                        list.push(this.binding_property()?);
+                    }
+                }
+            }
+            this.expect(TokenData::RBrace)?;
+            Ok(CompoundPatt::Obj(None, list))
+        })
     }
 
     fn strict_check<F>(&mut self, f: F) -> Result<()>
