@@ -98,6 +98,11 @@ impl Untrack for bool {
     fn untrack(&mut self) {}
 }
 
+
+impl Untrack for String {
+    fn untrack(&mut self) {}
+}
+
 pub fn span<T, U>(left: &T, right: &U) -> Option<Span>
   where T: TrackingRef,
         U: TrackingRef

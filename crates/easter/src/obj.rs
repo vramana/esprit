@@ -24,17 +24,12 @@ pub enum Prop {
     Shorthand(Id)
 }
 
-#[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut)]
+#[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum PropKey {
     Id(Option<Span>, String),
     String(Option<Span>, StringLiteral),
-    Number(Option<Span>, NumberLiteral)
-}
-
-impl Untrack for PropKey {
-    fn untrack(&mut self) {
-        *self.tracking_mut() = None;
-    }
+    Number(Option<Span>, NumberLiteral),
+    Computed(Option<Span>, Expr)
 }
 
 #[derive(Debug, PartialEq, Clone, TrackingRef, TrackingMut, Untrack)]

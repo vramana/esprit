@@ -82,7 +82,8 @@ impl IntoPatt for Object {
                         }
                     }
                     false => {
-                        let prop_key = e.extract_object("key")?.into_prop_key()?;
+                        let computed = e.computed();
+                        let prop_key = e.extract_object("key")?.into_prop_key(computed)?;
                         let prop_value = e.extract_object("value")?.into_patt()?;
                         Ok(PropPatt::Regular(None, prop_key, prop_value))
                     }

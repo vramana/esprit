@@ -1628,6 +1628,12 @@ impl Parser {
             TokenData::Reserved(word) => PropKey::Id(location, word.into_string()),
             TokenData::String(s) => PropKey::String(location, s),
             TokenData::Number(n) => PropKey::Number(location, n),
+            TokenData::LBrack => {
+                let expr = self.expression()?;
+                self.expect(TokenData::RBrack)?;
+                // FIXME add location info here.
+                PropKey::Computed(None, expr)
+            }
             _ => {
                 self.lexer.unread_token(token);
                 return Ok(None);
