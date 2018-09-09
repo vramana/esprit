@@ -1,15 +1,16 @@
 use serde_json::value::Value;
-use easter::expr::{Expr, ExprListItem};
+use easter::expr::{Expr, ExprListItem, Assign};
 use easter::fun::{FunctionKind};
 use easter::obj::DotKey;
 use easter::id::IdExt;
 use easter::punc::{Unop, Binop, Assop, Logop};
 use unjson::ty::{Object, TyOf};
-use unjson::ExtractField;
+use unjson::{ExtractField, Unjson};
 use joker::token::RegExpLiteral;
 
 use tag::{Tag, TagOf};
 use id::IntoId;
+use patt::IntoPatt;
 use result::Result;
 use error::{string_error, node_type_error, type_error};
 use node::ExtractNode;
@@ -18,6 +19,7 @@ use lit::{IntoStringLiteral, IntoNumberLiteral};
 
 pub trait IntoExpr {
     fn into_expr(self) -> Result<Expr>;
+    fn into_assignable_expr(self) -> Result<Expr>;
     fn into_expr_list_item(self) -> Result<ExprListItem>;
     fn into_lit(self) -> Result<Expr>;
 }
@@ -42,7 +44,14 @@ impl IntoExpr for Object {
                 let str = self.extract_string("operator")?;
                 let right = Box::new(self.extract_expr("right")?);
                 match &str[..] {
-                    "=" => Expr::Assign(None, Box::new(self.extract_assign_patt("left")?), right),
+                    "=" => {
+                        let left = self.extract_field("left")?.into_object()?;
+                        let left = match left.tag()? {
+                            Tag::ArrayPattern | Tag::ObjectPattern => Assign::Pattern(left.into_patt()?),
+                            _ => Assign::Expr(left.into_assignable_expr()?)
+                        };
+                        Expr::Assign(None, Box::new(left), right)
+                    }
                     _ => {
                         let op: Assop = match str.parse() {
                             Ok(op) => op,
@@ -145,6 +154,15 @@ impl IntoExpr for Object {
             }
             _ => { return node_type_error("expression", tag); }
         })
+    }
+
+    fn into_assignable_expr(self) -> Result<Expr> {
+        let tag = self.tag()?;
+        let expr = self.into_expr()?;
+        match expr.is_assignable() {
+            true => Ok(expr),
+            false => node_type_error("an assignable expression Expr::Id/Expr::Dot/Expr::Key", tag)
+        }
     }
 
     fn into_expr_list_item(mut self) -> Result<ExprListItem> {

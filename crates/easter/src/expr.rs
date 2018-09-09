@@ -11,6 +11,12 @@ use patt::{Patt, RestPatt, CompoundPatt, PropPatt};
 use cover;
 
 #[derive(PartialEq, Debug, Clone, TrackingRef, TrackingMut, Untrack)]
+pub enum Assign {
+    Expr(Expr),
+    Pattern(Patt<Id>)
+}
+
+#[derive(PartialEq, Debug, Clone, TrackingRef, TrackingMut, Untrack)]
 pub enum ExprListItem {
     Expr(Expr),
     Spread(Option<Span>, Expr)
@@ -31,7 +37,7 @@ pub enum Expr {
     PostInc(Option<Span>, Box<Expr>),
     PreDec(Option<Span>, Box<Expr>),
     PostDec(Option<Span>, Box<Expr>),
-    Assign(Option<Span>, Box<Patt<Expr>>, Box<Expr>),
+    Assign(Option<Span>, Box<Assign>, Box<Expr>),
     BinAssign(Option<Span>, Assop, Box<Expr>, Box<Expr>),
     Cond(Option<Span>, Box<Expr>, Box<Expr>, Box<Expr>),
     Call(Option<Span>, Box<Expr>, Vec<ExprListItem>),
@@ -66,7 +72,6 @@ impl Expr {
           _ => Err(cover::Error::InvalidAssignTarget(*self.tracking_ref()))
         }
     }
-
 
     pub fn into_simple_or_compound_pattern(self) -> Result<Patt<Expr>, cover::Error> {
         match self {

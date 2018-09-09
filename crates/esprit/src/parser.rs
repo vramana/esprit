@@ -1,5 +1,5 @@
 use easter::decl::{ConstDtor, Decl, Dtor, DtorExt};
-use easter::expr::{Expr, ExprListItem};
+use easter::expr::{Expr, ExprListItem, Assign};
 use easter::fun::FunctionKind;
 use easter::fun::{Fun, Params};
 use easter::id::{Id, IdExt};
@@ -2018,15 +2018,15 @@ impl Parser {
         let token = self.read_op()?;
         let left_location = *left.tracking_ref();
         if token.value == TokenData::Assign {
-            let left = match left.into_simple_or_compound_pattern() {
-                Ok(left) => left,
-                Err(cover_err) => {
-                    return Err(Error::InvalidLHS(left_location, cover_err));
-                }
-            };
+            // let left = match left.into_simple_or_compound_pattern() {
+            //     Ok(left) => left,
+            //     Err(cover_err) => {
+            //         return Err(Error::InvalidLHS(left_location, cover_err));
+            //     }
+            // };
             let right = self.assignment_expression()?;
             let location = span(&left, &right);
-            return Ok(Expr::Assign(location, Box::new(left), Box::new(right)));
+            return Ok(Expr::Assign(location, Box::new(Assign::Expr(left)), Box::new(right)));
         } else if let Some(op) = token.to_assop() {
             let left = match left.into_assignable() {
                 Ok(left) => left,

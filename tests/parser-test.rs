@@ -15,8 +15,7 @@ extern crate test;
 
 extern crate unjson;
 
-use easter::expr::Expr;
-use easter::patt::{Patt};
+use easter::expr::{Expr, Assign};
 use easter::stmt::{Stmt, StmtListItem};
 use esprit::script;
 use estree::IntoScript;
@@ -47,7 +46,7 @@ fn as_ref_test(tests: &mut Vec<TestDescAndFn>) {
         let mut ast = script("foobar = 17;").unwrap();
         ast.untrack();
         match ast.items.first().unwrap() {
-            &StmtListItem::Stmt(Stmt::Expr(_, Expr::Assign(_, box Patt::Simple(Expr::Id(ref id)), _), _)) => {
+            &StmtListItem::Stmt(Stmt::Expr(_, Expr::Assign(_, box Assign::Expr(Expr::Id(ref id)), _), _)) => {
                 assert_eq!(id.name.as_ref(), "foobar");
             }
             _ => { panic!("unexpected AST structure"); }
