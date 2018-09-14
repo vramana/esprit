@@ -13,7 +13,7 @@ use result::Result;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
-    UnexpectedToken(Token),
+    UnexpectedToken(Token, &'static str),
     FailedASI(Token),
     LexError(joker::error::Error),
     TopLevelReturn(Span),
@@ -40,7 +40,7 @@ pub enum Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match *self {
-            Error::UnexpectedToken(_) => "unexpected token",
+            Error::UnexpectedToken(_, msg) => msg,
             Error::FailedASI(_) => "failed ASI",
             Error::LexError(ref err) => err.description(),
             Error::TopLevelReturn(_) => "top level return",

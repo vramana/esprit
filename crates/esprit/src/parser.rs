@@ -186,8 +186,8 @@ impl Parser {
         replace(&mut self.deferred, Vec::new())
     }
 
-    fn unexpected<T>(&mut self) -> Result<T> {
-        Err(Error::UnexpectedToken(self.peek()?.clone()))
+    fn unexpected<T>(&mut self, msg: &'static str) -> Result<T> {
+        Err(Error::UnexpectedToken(self.peek()?.clone(), msg))
     }
 
     fn match_directive_opt(&mut self) -> Result<Option<Dir>> {
@@ -406,7 +406,7 @@ impl Parser {
                     match this.peek()?.value {
                         TokenData::Assign => {
                             // TODO Should this use reread instead?
-                            let _ = this.read();
+                            this.read()?;
                             // FIXME Allow expression instead of primary expression because if we do
                             // this.expression()? we end up over parsing by treating property seperator
                             // commas as part of expression. We likely need a different method to parse
@@ -420,7 +420,7 @@ impl Parser {
                         | TokenData::RParen
                         | TokenData::RBrack
                         | TokenData::RBrace => Ok(Patt::Simple(id)),
-                        _ => this.unexpected(),
+                        _ => this.unexpected("parameter pattern did not find a suitable next token"),
                     }
                 })
             }
@@ -435,7 +435,7 @@ impl Parser {
         self.span(&mut |this| {
             let param = match this.peek()?.value {
                 TokenData::Identifier(_) => this.span(&mut |this| Ok(Patt::Simple(this.id(true)?))),
-                _ => this.unexpected(),
+                _ => this.unexpected("arrow function expected identifier as argument"),
             }?;
 
             Ok(Params {
@@ -464,14 +464,14 @@ impl Parser {
         // mutable borrow of self doesn't work.
         let token = self.read()?;
         if !token.first_binding() {
-            return self.unexpected();
+            return self.unexpected("not a first binding");
         }
         self.lexer.unread_token(token);
 
         match self.peek()?.value {
             TokenData::LBrack => self.array_pattern(),
             TokenData::LBrace => self.object_pattern(),
-            _ => self.unexpected(),
+            _ => self.unexpected("array pattern or object pattern expected"),
         }
     }
 
@@ -526,7 +526,7 @@ impl Parser {
                             let value = this.parameter_pattern()?;
                             Ok(PropPatt::Regular(None, key, value))
                         } else {
-                            this.unexpected()
+                            this.unexpected("expected identifier with Name::String")
                         }
                     }
                     TokenData::Assign => {
@@ -546,7 +546,7 @@ impl Parser {
                         let id = this.id(true)?;
                         Ok(PropPatt::Shorthand(None, id, None))
                     }
-                    _ => this.unexpected(),
+                    _ => this.unexpected("expected either shorthand/regular/computed property"),
                 },
                 _ => {
                     this.lexer.unread_token(token);
@@ -557,7 +557,7 @@ impl Parser {
                             let value = this.parameter_pattern()?;
                             Ok(PropPatt::Regular(None, key, value))
                         }
-                        _ => this.unexpected(),
+                        _ => this.unexpected("expected computed property"),
                     }
                 }
             }
@@ -712,7 +712,7 @@ impl Parser {
         (match self.peek()?.value {
             TokenData::Reserved(Reserved::Function) => {
                 if !allow_decl {
-                    return self.unexpected();
+                    return self.unexpected("function declaration not allowed");
                 }
                 return self.function_declaration().map(StmtListItem::Decl);
             }
@@ -720,7 +720,7 @@ impl Parser {
             TokenData::Reserved(Reserved::Var) => self.var_statement(),
             TokenData::Reserved(Reserved::Const) => {
                 if !allow_decl {
-                    return self.unexpected();
+                    return self.unexpected("const declaration not allowed");
                 }
                 return self.const_declaration().map(StmtListItem::Decl);
             }
@@ -748,7 +748,7 @@ impl Parser {
                         if token.value == TokenData::Identifier(Name::Atom(Atom::Let)) =>
                     {
                         if !allow_decl {
-                            return self.unexpected();
+                            return self.unexpected("identifier declaration not allowed");
                         }
                         return self
                             .let_declaration(token.location.start)
@@ -868,11 +868,14 @@ impl Parser {
         } = self.read()?;
         match data {
             TokenData::Identifier(name) => self.new_id(binding, name, location),
-            _ => Err(Error::UnexpectedToken(Token {
-                location: location,
-                newline: newline,
-                value: data,
-            })),
+            _ => {
+                let token = Token {
+                    location: location,
+                    newline: newline,
+                    value: data,
+                };
+                Err(Error::UnexpectedToken(token, "expected identifier"))
+            }
         }
     }
 
@@ -1011,7 +1014,7 @@ impl Parser {
                                 ));
                                 self.more_for_in(head)
                             }
-                            _ => self.unexpected(),
+                            _ => self.unexpected("expected comma/semi/'in' after for ( var id = "),
                         }
                     }
                     // 'for' '(' 'var' patt '=' . ==> C-style
@@ -1037,7 +1040,7 @@ impl Parser {
                 let dtor = match Dtor::from_init_opt(lhs, None) {
                     Ok(dtor) => dtor,
                     Err(_) => {
-                        return self.unexpected();
+                        return self.unexpected("expected assignment pattern in for (var");
                     }
                 };
                 self.more_for_head(&var_location, dtor, ForHead::Var)
@@ -1056,7 +1059,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Var(span(&var_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected(),
+            _ => self.unexpected("unexpected identifier after pattern"),
         }
     }
 
@@ -1086,7 +1089,7 @@ impl Parser {
                 let dtor = match Dtor::from_init_opt(lhs, None) {
                     Ok(dtor) => dtor,
                     Err(_) => {
-                        return self.unexpected();
+                        return self.unexpected("uninitialized pattern in for (let");
                     }
                 };
                 self.more_for_head(&let_location, dtor, ForHead::Let)
@@ -1105,7 +1108,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Let(span(&let_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected(),
+            _ => self.unexpected("unexpected token after pattern in for (let patt"),
         }
     }
 
@@ -1144,7 +1147,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Const(span(&const_location, &lhs), lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected(),
+            _ => self.unexpected("unexpected token affter pattern in for (const patt"),
         }
     }
 
@@ -1180,7 +1183,7 @@ impl Parser {
                 let head = Box::new(ForOfHead::Patt(lhs));
                 self.more_for_of(head)
             }
-            _ => self.unexpected(),
+            _ => self.unexpected("unexpected token in for_expr"),
         }
     }
 
@@ -1459,7 +1462,7 @@ impl Parser {
         let match_arrow = self.matches_op(TokenData::Arrow)?;
         // println!("match arrow {}", match_arrow);
         match match_arrow {
-            true => self.unexpected(),
+            true => self.unexpected("unexpected arrow after paren expression"),
             false => Ok(result),
         }
     }
@@ -1524,7 +1527,7 @@ impl Parser {
             }
             // ES6: more cases
             _ => {
-                return Err(Error::UnexpectedToken(token));
+                return Err(Error::UnexpectedToken(token, "unhandled primary expression"));
             }
         })
     }
@@ -1611,11 +1614,11 @@ impl Parser {
                 if let PropKey::Id(location, name) = key {
                     Prop::Shorthand(self.new_id(false, Name::from(name), location.unwrap())?)
                 } else {
-                    return self.unexpected();
+                    return self.unexpected("expected property key to be identifier because it's followed by comma/rbrace");
                 }
             }
             _ => {
-                return self.unexpected();
+                return self.unexpected("unexpected token after property key");
             }
         })
     }
@@ -1644,7 +1647,7 @@ impl Parser {
     fn property_key(&mut self) -> Result<PropKey> {
         match self.property_key_opt()? {
             Some(key) => Ok(key),
-            None => self.unexpected(),
+            None => self.unexpected("expected property key"),
         }
     }
 
@@ -1701,7 +1704,7 @@ impl Parser {
             }
             TokenData::Reserved(_) => match self.peek()?.value {
                 TokenData::Comma | TokenData::RBrace => {
-                    return Err(Error::UnexpectedToken(first));
+                    return Err(Error::UnexpectedToken(first, "unexpected reserved token used as shorthand property key"));
                 }
                 _ => {
                     self.lexer.unread_token(first);
@@ -1824,7 +1827,7 @@ impl Parser {
                 TokenData::Identifier(name) => name.into_string(),
                 TokenData::Reserved(word) => word.into_string(),
                 _ => {
-                    return Err(Error::UnexpectedToken(token));
+                    return Err(Error::UnexpectedToken(token, "token is neither identifier nor reserved"));
                 }
             },
         })

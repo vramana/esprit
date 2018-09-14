@@ -38,11 +38,12 @@ impl State for Parser {
         self.lexer.peek_token(true).map_err(Error::LexError)
     }
 
+    // TODO Add more meaningful message here
     fn expect(&mut self, expected: TokenData) -> Result<Token> {
         // println!("expect {}", self.lexer.index());
         let token = self.read()?;
         if token.value != expected {
-            return Err(Error::UnexpectedToken(token));
+            return Err(Error::UnexpectedToken(token, "expect call"));
         }
         Ok(token)
     }
